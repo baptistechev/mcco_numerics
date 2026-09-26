@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.metadata
 import json
 import os
 import platform
@@ -67,8 +68,18 @@ def _hardware() -> dict:
     return info
 
 
+def _troma_source() -> dict | None:
+    """How troma was installed (PEP 610 direct_url.json: git URL + commit, or local path)."""
+    try:
+        text = importlib.metadata.distribution("troma").read_text("direct_url.json")
+    except importlib.metadata.PackageNotFoundError:
+        return None
+    return json.loads(text) if text else None
+
+
 def provenance(params: Params, stage: str, workers: int) -> dict:
     troma_root = Path(troma.__file__).resolve().parents[2]
+    troma_git = _git_info(troma_root) if (troma_root / ".git").exists() else None  # local checkout only
     return {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "argv": sys.argv,
@@ -78,7 +89,8 @@ def provenance(params: Params, stage: str, workers: int) -> dict:
         "params_hash": params_hash(params),
         "versions": {"python": sys.version, "numpy": np.__version__, "scipy": scipy.__version__,
                      "troma": troma.__version__, "troma_file": troma.__file__},
-        "git": {"troma_lib": _git_info(troma_root), "mcco_paper": _git_info(Path(__file__).resolve().parents[1])},
+        "troma_source": _troma_source(),
+        "git": {"troma_lib": troma_git, "mcco_paper": _git_info(Path(__file__).resolve().parents[1])},
         "hardware": _hardware(),
     }
 

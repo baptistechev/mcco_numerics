@@ -31,10 +31,10 @@ uv pip install --python .venv/bin/python -e ".[test]"
 ```
 
 Dependencies are declared in [`pyproject.toml`](pyproject.toml), which also installs `mcco_sim` as
-an editable package. TrOMA comes from `../troma_lib`, branch `perf/vectorized-marginals`, through
-`[tool.uv.sources]` (uv). Once the branch is pushed, that line becomes a pinned git commit that pip
-understands too. The branch adds the vectorized sketch marginals, sparse sketching with `ExplicitSketchMap`, and
-`DitString.from_integers`.
+an editable package. TrOMA is installed from the branch `perf/vectorized-marginals` on GitHub
+(baptistechev/TrOMA). That branch adds the vectorized sketch marginals, sparse sketching with
+`ExplicitSketchMap`, and `DitString.from_integers`. The install works with uv and plain pip, and the
+commit actually installed is recorded in every `invocations.jsonl` entry (`troma_source`).
 
 ## Running
 
@@ -67,7 +67,7 @@ python -m pytest                                        # test suite (~30 s)
 | File | Content |
 |---|---|
 | `params.json`, `params.py` | the hyperparameters of this directory (resolved values and file copy) |
-| `invocations.jsonl` | per invocation: argv, git commit/dirty of `troma_lib` and `mcco_paper`, versions, hardware |
+| `invocations.jsonl` | per invocation: argv, TrOMA install source (git URL + commit), git commit/dirty of `mcco_paper`, versions, hardware |
 | `instances.jsonl` | one record per instance (rules, ground truth, gap, WH sparsity, maximizers, seeds) |
 | `selection.json` | E2 instances (closest to median gap and sparsity) and E3 instance |
 | `theory.jsonl` | per instance × sketch × threshold: max preserved by G, Θ_min, σ², M bounds, Eq. (6)/(7) |

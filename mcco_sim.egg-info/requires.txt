@@ -1,6 +1,6 @@
 numpy==2.4.6
 scipy==1.17.1
-troma
+troma @ git+https://github.com/baptistechev/TrOMA.git@perf/vectorized-marginals
 
 [test]
 pytest
