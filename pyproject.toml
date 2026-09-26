@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcco-sim"
+version = "0.1.0"
+description = "Numerics of the MCCO revision (simulation_plan.md), built on the TrOMA library"
+requires-python = ">=3.11"          # TrOMA uses enum.StrEnum
+dependencies = [
+    "numpy==2.4.6",
+    "scipy==1.17.1",
+    # Branch perf/vectorized-marginals (vectorized sketch marginals, sparse ExplicitSketchMap
+    # sketching, DitString.from_integers); resolved from ../troma_lib below.
+    "troma",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.setuptools]
+packages = ["mcco_sim"]
+
+# Local TrOMA checkout (uv). Once the branch is pushed, pin the commit instead:
+#   troma = { git = "https://github.com/baptistechev/TrOMA.git", rev = "<commit>" }
+[tool.uv.sources]
+troma = { path = "../troma_lib", editable = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

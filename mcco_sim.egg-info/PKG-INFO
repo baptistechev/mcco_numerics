@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: mcco-sim
+Version: 0.1.0
+Summary: Numerics of the MCCO revision (simulation_plan.md), built on the TrOMA library
+Requires-Python: >=3.11
+Requires-Dist: numpy==2.4.6
+Requires-Dist: scipy==1.17.1
+Requires-Dist: troma
+Provides-Extra: test
+Requires-Dist: pytest; extra == "test"
