@@ -10,6 +10,7 @@ from troma import CombinatorialProblem, DitString, Sample, matching_pursuit
 
 from .instances import Instance
 from .params import Params
+from .posthoc import best_sampled, combined_estimate, sample_indexes
 from .seeds import derive_seed
 from .sketches import SketchSet, problem2
 
@@ -46,7 +47,7 @@ def mcco_sample(params: Params, inst: Instance, sketches: SketchSet, sample_id: 
     N = inst.N
     sample_seed = derive_seed(params, "sample", inst.d["instance_seed"], sample_id)
     n_max = max(budgets)
-    indexes_all = np.random.default_rng(sample_seed).integers(0, 2 ** N, size=n_max, dtype=np.int64)
+    indexes_all = sample_indexes(params, inst.d["instance_seed"], sample_id, n_max, N)
     q = params.Q
     records = []
     for n in budgets:
@@ -115,7 +116,13 @@ def mcco_sample(params: Params, inst: Instance, sketches: SketchSet, sample_id: 
                 distinct = list(dict.fromkeys(positions))
                 values = [oracle(np.asarray(DitString.from_integer(x, N))) for x in distinct]
                 time_candidates = time.perf_counter() - start
-                x_hat = distinct[int(np.argmax(values))] if distinct else None
+                x_mp = distinct[int(np.argmax(values))] if distinct else None
+                f_mp = max(values) if distinct else None
+                # Estimate = best of the sampled strings and the MP candidates (no extra query:
+                # the sampled values are known). The MP-only outcome is kept in the *_mp fields.
+                x_sample, f_sample = best_sampled(inst.f, prefix)
+                x_hat = combined_estimate(x_mp, f_mp, x_sample, f_sample)
+                estimate_mp = {f"{k}_mp": v for k, v in inst.evaluate_estimate(x_mp).items()}
                 records.append({
                     "record": "run",
                     "method": "mcco",
@@ -125,6 +132,10 @@ def mcco_sample(params: Params, inst: Instance, sketches: SketchSet, sample_id: 
                     "mp_early_stop": any("Early stop" in str(w.message) for w in caught),
                     "queries": n + sum(1 for x in distinct if x not in in_sample),
                     **inst.evaluate_estimate(x_hat),
+                    **estimate_mp,
+                    "sample_best_x": x_sample,
+                    "sample_best_f": f_sample,
+                    "sample_n_max": n_max,
                     "time": {"sampling": time_sampling, "sketching": time_sketching, "decoding": time_decoding,
                              "candidates": time_candidates, "problem2": time_problem2},
                 })

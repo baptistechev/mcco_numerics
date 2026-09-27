@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 
 from .params import Params
@@ -190,31 +192,78 @@ class Instance:
         }
 
 
-def select_e2_instances(params: Params, instance_records: list[dict]) -> dict:
-    """One instance per family from the |R| = E2_R ensemble, unique maximizer, with gap and
-    WH sparsity closest to the ensemble medians: min |gap - med| / IQR + |s - med| / IQR."""
-    records = [r for r in instance_records if r["ensemble"] == "e1"]
+def select_e2_typical(params: Params, instance_records: list[dict], e1_runs: list[dict],
+                      sketches: list[str]) -> dict:
+    """E2 instances with a typical success probability (e2_selection_edits.md).
+
+    Per family, pool = E1 instances with |R| = E2_R and a unique maximizer. s_ik(n) = MP-only
+    success rate of instance i, sketch k, budget n over its J E1 runs (adaptive threshold);
+    m_k(n) = median of s_ik(n) over the pool. The budget n* has the mean over sketches of m_k(n)
+    closest to 0.5 (ties: smaller n), and the instance minimizes d_i = sum_k sum_n |s_ik(n) - m_k(n)|
+    over the whole grid (ties: smaller instance id). n* is common to both families only if their
+    medians happen to agree; it is chosen per family.
+    """
+    budgets = list(params.budgets)
+    unique = {r["instance_key"] for r in instance_records
+              if r["ensemble"] == "e1" and r["n_rules"] == params.E2_R and r["unique_maximizer"]}
+    rates: dict[tuple, list] = {}
+    for r in e1_runs:
+        if (r["experiment"] == "e1" and r["method"] == "mcco" and r["record"] == "run"
+                and r["threshold_mode"] == "adaptive" and r["sketch"] in sketches and r["instance_key"] in unique):
+            success = r.get("success_mp")
+            if success is None:                 # records written before the combined estimate
+                success = r["success"]
+            rates.setdefault((r["instance_key"], r["sketch"], r["n"]), []).append(float(success))
     lookup = {d["key"]: d for d in build_instance_descriptors(params)["e1"]}
     selection = {}
     for family in params.FAMILIES:
-        pool = [r for r in records if r["family"] == family and r["n_rules"] == params.E2_R
-                and r["unique_maximizer"]]
-        pool.sort(key=lambda r: r["instance_id"])
-        gaps = np.array([r["gap"] for r in pool])
-        sparsity = np.array([r["wh_sparsity"] for r in pool], dtype=float)
-
-        def scaled_distance(values):
-            q25, q50, q75 = np.percentile(values, [25, 50, 75])
-            iqr = q75 - q25 if q75 > q25 else 1.0
-            return np.abs(values - q50) / iqr, float(q50), float(iqr)
-
-        d_gap, med_gap, iqr_gap = scaled_distance(gaps)
-        d_s, med_s, iqr_s = scaled_distance(sparsity)
-        best = int(np.argmin(d_gap + d_s))
+        pool = sorted((k for k in unique if lookup[k]["family"] == family), key=lambda k: lookup[k]["instance_id"])
+        if not pool:
+            raise ValueError(f"No E2 pool for family {family}.")
+        s = np.array([[[np.mean(rates[(key, k, n)]) for n in budgets] for k in sketches] for key in pool])
+        median = np.median(s, axis=0)                                   # (sketches, budgets)
+        n_star = budgets[int(np.argmin(np.abs(median.mean(axis=0) - 0.5)))]   # argmin: first = smaller n
+        distance = np.abs(s - median).sum(axis=(1, 2))
+        best = int(np.argmin(distance))                                  # pool sorted by id: ties -> smaller id
         selection[family] = {
-            "descriptor": lookup[pool[best]["instance_key"]],
-            "gap": float(gaps[best]), "wh_sparsity": int(sparsity[best]),
-            "median_gap": med_gap, "iqr_gap": iqr_gap, "median_wh_sparsity": med_s, "iqr_wh_sparsity": iqr_s,
-            "score": float(d_gap[best] + d_s[best]), "pool_size": len(pool),
+            "descriptor": lookup[pool[best]], "n_star": n_star, "d_i": float(distance[best]),
+            "pool_size": len(pool), "pool_median_d_i": float(np.median(distance)),
+            "median_success": {k: dict(zip(map(str, budgets), median[j].tolist())) for j, k in enumerate(sketches)},
+            "instance_success": {k: dict(zip(map(str, budgets), s[best, j].tolist())) for j, k in enumerate(sketches)},
+            "rule": "pool: E1, |R| = E2_R, unique maximizer; MP-only E1 success (adaptive threshold); "
+                    "n*: mean over sketches of the pool median closest to 0.5; instance: min sum |s - median|",
         }
+    return selection
+
+
+def select_e5_instances(params: Params, theory_records: list[dict], sketches: list[str]) -> dict:
+    """E5a instances: per family, among E1 instances with |R| >= 2 and a unique maximizer whose
+    maximum is preserved by G for every given sketch (at t = exact Q-th percentile), the one
+    minimizing max over sketches of n* = N ln 2 / exponent of Eq. (6) (M = "valid"), i.e. the
+    budget at which the bound of Eq. (6) falls below 1. Ties go to the lowest instance id."""
+    by_instance: dict[str, dict] = {}
+    for r in theory_records:
+        if (r["ensemble"] == "e1" and r["t_label"] == "q_exact" and r["n_rules"] >= 2
+                and r["unique_maximizer"] and r["sketch"] in sketches):
+            by_instance.setdefault(r["instance_key"], {})[r["sketch"]] = r
+    lookup = {d["key"]: d for d in build_instance_descriptors(params)["e1"]}
+    selection = {}
+    for family in params.FAMILIES:
+        candidates = []
+        for key, recs in by_instance.items():
+            if lookup[key]["family"] != family or set(recs) != set(sketches):
+                continue
+            if not all(r.get("max_preserved") and r["eq6_exponent"]["valid"] for r in recs.values()):
+                continue
+            n_star = {s: params.N * math.log(2) / recs[s]["eq6_exponent"]["valid"] for s in sketches}
+            candidates.append((max(n_star.values()), lookup[key]["instance_id"], key, n_star))
+        if not candidates:
+            print(f"[e5] no eligible E5 instance for family {family}", flush=True)
+            selection[family] = None
+            continue
+        worst, _, key, n_star = min(candidates)
+        selection[family] = {"descriptor": lookup[key], "n_star": n_star, "max_n_star": worst,
+                             "eligible": len(candidates),
+                             "rule": "E1, |R| >= 2, unique maximizer, max preserved by G for every sketch; "
+                                     "min over instances of max over sketches of N ln 2 / exponent (M valid)"}
     return selection

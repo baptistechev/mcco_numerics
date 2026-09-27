@@ -16,10 +16,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest"]
+plots = ["matplotlib==3.11.2", "pandas==2.3.3"]   # plot.py
+test = ["pytest", "mcco-sim[plots]"]
 
 [tool.setuptools]
 packages = ["mcco_sim"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]          # plot.py and run.py live at the repository root

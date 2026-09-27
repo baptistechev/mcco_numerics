@@ -2,5 +2,10 @@ numpy==2.4.6
 scipy==1.17.1
 troma @ git+https://github.com/baptistechev/TrOMA.git@perf/vectorized-marginals
 
+[plots]
+matplotlib==3.11.2
+pandas==2.3.3
+
 [test]
 pytest
+mcco-sim[plots]

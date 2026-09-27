@@ -38,8 +38,8 @@ class Params:
     E3_FAMILY: str
     E3_R: int
     E3_RULE_LENGTHS: tuple
-    E3_MAX_DRAWS: int
     E5_DELTA: float
+    E5_N_MAX: int
     PILOT_INSTANCES: int
     PILOT_SAMPLES: int
     BLOCK_SIZE: int
@@ -50,14 +50,17 @@ class Params:
     @property
     def budgets(self) -> list[int]:
         """Budget grid n = N_MIN * 2^j up to N_MAX."""
-        grid = [self.N_MIN]
-        while grid[-1] < self.N_MAX:
-            grid.append(2 * grid[-1])
-        return grid
+        return doubling_grid(self.N_MIN, self.N_MAX)
+
+    @property
+    def e5_budgets(self) -> list[int]:
+        """Budget grid of the E5a sweep: n = N_MIN * 2^j up to E5_N_MAX."""
+        return doubling_grid(self.N_MIN, self.E5_N_MAX)
 
     def to_dict(self) -> dict:
         values = dataclasses.asdict(self)
         values["budgets (derived)"] = self.budgets
+        values["e5_budgets (derived)"] = self.e5_budgets
         return values
 
     def replace(self, **changes: Any) -> "Params":
@@ -67,11 +70,20 @@ class Params:
 NAMES = [field.name for field in dataclasses.fields(Params)]
 
 
+def doubling_grid(n_min: int, n_max: int) -> list[int]:
+    grid = [n_min]
+    while grid[-1] < n_max:
+        grid.append(2 * grid[-1])
+    return grid
+
+
 def validate(params: Params) -> Params:
     if params.N_MIN < 1 or params.N_MAX < params.N_MIN:
         raise ValueError("Need 1 <= N_MIN <= N_MAX.")
     if params.budgets[-1] != params.N_MAX:
         raise ValueError(f"N_MAX={params.N_MAX} must be N_MIN={params.N_MIN} times a power of 2.")
+    if params.E5_N_MAX < params.N_MAX or params.e5_budgets[-1] != params.E5_N_MAX:
+        raise ValueError(f"E5_N_MAX={params.E5_N_MAX} must be >= N_MAX and N_MIN={params.N_MIN} times a power of 2.")
     unknown_families = set(params.FAMILIES) - {"L", "W"}
     if unknown_families:
         raise ValueError(f"Unknown families {sorted(unknown_families)}.")
@@ -101,6 +113,16 @@ def load_params(path: str | Path) -> Params:
     unknown = sorted(set(values) - set(NAMES))
     if missing or unknown:
         raise ValueError(f"{path}: missing {missing}, unknown {unknown}")
+    values = {name: tuple(v) if isinstance(v, list) else v for name, v in values.items()}
+    return validate(Params(**values))
+
+
+def params_from_dict(values: dict) -> Params:
+    """Params from the resolved values stored in an output directory (``params.json``)."""
+    values = {k: v for k, v in values.items() if k in NAMES}
+    missing = [name for name in NAMES if name not in values]
+    if missing:
+        raise ValueError(f"params.json: missing {missing}")
     values = {name: tuple(v) if isinstance(v, list) else v for name, v in values.items()}
     return validate(Params(**values))
 
