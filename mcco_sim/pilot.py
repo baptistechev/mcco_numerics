@@ -97,21 +97,32 @@ def compute_estimate(params: Params, timings: dict) -> dict:
     J, J1 = params.J, params.J_SINGLE
     per_sample = {s: sum(decode[(s, n)] + p2_only[(s, n)] for n in budgets) for s in sketches}
     da_sample_cost = sum(da.values())
-    n_sweep_units = 3 * math.ceil(J1 / params.BLOCK_SIZE)
+    n_sweep_units = math.ceil(J1 / params.BLOCK_SIZE)
     n_e2_units = 2 * math.ceil(J1 / params.BLOCK_SIZE)
     mid = budgets[len(budgets) // 2]
     single_setup = instance_time + sum(setup[s] for s in single)
+    n_e5_units = 2 * math.ceil(J1 / params.BLOCK_SIZE)
+    p2_single = {s: {n: p2_only[(s, n)] for n in budgets} for s in single}
+
+    def scaled(per_budget: dict, n: int) -> float:
+        """Timing at budget n; beyond the pilot grid (E5a), linear in n from the largest budget."""
+        return per_budget[n] if n in per_budget else per_budget[budgets[-1]] * n / budgets[-1]
+
     estimate = {
         "instances": (n_e1 + n_tuning) * instance_time,
         "theory": sum(e1_instances[s] * theory.get(s, 0.0) for s in sketches),
         "tuning": n_tuning * J * len(da_grid(params)) * da_sample_cost,
         "e1": (n_e1 * (instance_time + J * (sum(sampling.values()) + da_sample_cost))
                + sum(e1_instances[s] * (setup[s] + J * per_sample[s]) for s in sketches)),
-        "sweep": (3 * J1 * sum(sampling[n] + 3 * sum(decode[(s, n)] for s in single) for n in budgets)
-                  + n_sweep_units * single_setup),
+        "sweep": (J1 * sum(sampling[n] + 3 * sum(decode[(s, n)] for s in single) for n in budgets)   # E3
+                  + 2 * J1 * sum(scaled(sampling, n) + sum(scaled(p2_single[s], n) for s in single)
+                                 for n in params.e5_budgets)
+                  + (n_sweep_units + n_e5_units) * single_setup),
         "e2 (budget at mid grid)": (2 * J1 * (sampling[mid] + (len(params.E2_PERCENTILES) + 3)
                                               * sum(decode[(s, mid)] for s in single))
-                                    + n_e2_units * single_setup),
+                                    + n_e2_units * single_setup
+                                    # theory of the threshold grid on the two E2 instances
+                                    + 2 * (len(params.E2_PERCENTILES) + 3) / 2 * sum(theory.get(s, 0.0) for s in single)),
     }
     total = sum(estimate.values())
     random_rows = [sketch_rows(params, s) for s in params.SKETCHES.values() if s["type"] == "gaussian"]

@@ -98,24 +98,11 @@ def provenance(params: Params, stage: str, workers: int) -> dict:
     }
 
 
-class Output:
-    """An output directory tied to one set of params (``params.json`` + a copy of the params file)."""
+class RecordStore:
+    """Read-only view of an output directory (no params check): used for plotting old results."""
 
-    def __init__(self, out_dir: str | Path, params: Params, params_file: str | Path | None = None) -> None:
+    def __init__(self, out_dir: str | Path) -> None:
         self.dir = Path(out_dir)
-        self.dir.mkdir(parents=True, exist_ok=True)
-        self.params = params
-        stored = self.dir / "params.json"
-        resolved = json.loads(dumps(params.to_dict()))
-        if stored.exists():
-            with open(stored) as fh:
-                if _dict_hash(json.load(fh)) != _dict_hash(resolved):
-                    raise SystemExit(f"{stored} differs from the given params; use another --out directory.")
-        else:
-            with open(stored, "w") as fh:
-                json.dump(resolved, fh, indent=2)
-            if params_file is not None:
-                shutil.copyfile(params_file, self.dir / "params.py")
 
     def path(self, name: str) -> Path:
         return self.dir / name
@@ -133,6 +120,49 @@ class Output:
             with open(path) as fh:
                 yield from fh
 
+    def done_units(self) -> set[str]:
+        return {json.loads(line)["unit"] for line in self.lines("progress.jsonl") if line.strip()}
+
+    def load(self, name: str, fields: list[str] | None = None, contains: list[str] | None = None) -> list[dict]:
+        """Records of committed units only (a crash mid-write can leave uncommitted lines).
+        With ``fields``, each record keeps only those keys (missing keys give None).
+        With ``contains``, only lines holding every given substring are parsed (fast prefilter of
+        large files; filter again on the parsed values if a substring could be ambiguous)."""
+        if not self.parts(name):
+            return []
+        done = self.done_units()
+        lines = self.lines(name)
+        if contains:
+            lines = (line for line in lines if all(c in line for c in contains))
+        records = (rec for rec in map(json.loads, lines) if rec.get("unit") in done)
+        if fields is None:
+            return list(records)
+        return [{k: rec.get(k) for k in fields} for rec in records]
+
+    def read_json(self, name: str):
+        with open(self.path(name)) as fh:
+            return json.load(fh)
+
+
+class Output(RecordStore):
+    """An output directory tied to one set of params (``params.json`` + a copy of the params file)."""
+
+    def __init__(self, out_dir: str | Path, params: Params, params_file: str | Path | None = None) -> None:
+        super().__init__(out_dir)
+        self.dir.mkdir(parents=True, exist_ok=True)
+        self.params = params
+        stored = self.dir / "params.json"
+        resolved = json.loads(dumps(params.to_dict()))
+        if stored.exists():
+            with open(stored) as fh:
+                if _dict_hash(json.load(fh)) != _dict_hash(resolved):
+                    raise SystemExit(f"{stored} differs from the given params; use another --out directory.")
+        else:
+            with open(stored, "w") as fh:
+                json.dump(resolved, fh, indent=2)
+            if params_file is not None:
+                shutil.copyfile(params_file, self.dir / "params.py")
+
     def append(self, name: str, records: list[dict]) -> None:
         data = "".join(dumps(rec) + "\n" for rec in records).encode()
         parts = self.parts(name)
@@ -145,20 +175,6 @@ class Output:
             fh.flush()
             os.fsync(fh.fileno())
 
-    def done_units(self) -> set[str]:
-        return {json.loads(line)["unit"] for line in self.lines("progress.jsonl") if line.strip()}
-
-    def load(self, name: str) -> list[dict]:
-        """Records of committed units only (a crash mid-write can leave uncommitted lines)."""
-        if not self.parts(name):
-            return []
-        done = self.done_units()
-        return [rec for rec in map(json.loads, self.lines(name)) if rec.get("unit") in done]
-
     def write_json(self, name: str, obj) -> None:
         with open(self.path(name), "w") as fh:
             fh.write(json.dumps(obj, indent=2, default=_json_default))
-
-    def read_json(self, name: str):
-        with open(self.path(name)) as fh:
-            return json.load(fh)

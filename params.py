@@ -48,12 +48,12 @@ E2_PERCENTILES = (50, 60, 70, 75, 80, 85, 90, 92.5, 95, 97.5, 99, 99.5, 99.9)  #
 
 # --- E3: sketch/rule mismatch ----------------------------------------------------------------------
 E3_FAMILY = "L"
-E3_R = 5
+E3_R = 3                        # the E3 instance is draw 0 (any number of maximizers)
 E3_RULE_LENGTHS = (4,)
-E3_MAX_DRAWS = 1000             # draws tried until a unique maximizer is found
 
 # --- E5: theory check --------------------------------------------------------------------------------
 E5_DELTA = 0.1                  # delta of the sample size of Eq. (7)
+E5_N_MAX = 409_600              # budget grid of the E5a sweep: N_MIN * 2^j up to E5_N_MAX (E1 stays at N_MAX)
 
 # --- Pilot (timings and compute estimate) ----------------------------------------------------------
 PILOT_INSTANCES = 10

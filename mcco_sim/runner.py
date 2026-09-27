@@ -21,20 +21,19 @@ def unit_instance(params: Params, payload: dict) -> dict:
 
 
 def unit_theory(params: Params, payload: dict) -> dict:
-    """Theory at t = 0 and t = exact Q-th percentile for the sketches of the instance's context,
-    and the E2 grid (single-instance sketches only) for the E2 instances."""
+    """Theory at t = 0 and t = exact Q-th percentile for the sketches of the instance's context or,
+    with ``labels`` ({sketch: [E2-grid labels]}), only those thresholds of the E2 grid."""
     inst = Instance(params, payload["descriptor"])
-    base_names = sketch_names(params, payload["descriptor"], payload["context"])
-    grid_names = sketch_names(params, payload["descriptor"], "single") if payload.get("e2_grid") else []
-    sketches = SketchSet(params, inst, names=[n for n in params.SKETCHES if n in base_names + grid_names])
-    base = [("zero", 0.0), ("q_exact", inst.q_exact)]
-    grid = e2_thresholds(params, inst)
+    if "labels" in payload:
+        grid = dict(e2_thresholds(params, inst))
+        wanted = {name: [(label, grid[label]) for label in labels] for name, labels in payload["labels"].items()}
+    else:
+        base = [("zero", 0.0), ("q_exact", inst.q_exact)]
+        wanted = {name: base for name in sketch_names(params, payload["descriptor"], payload["context"])}
+    sketches = SketchSet(params, inst, names=[n for n in params.SKETCHES if wanted.get(n)])
     records = []
     for name in sketches.names:
-        thresholds = base if name in base_names else []
-        if name in grid_names:  # the grid also starts at t = 0: keep one record per threshold label
-            thresholds = thresholds + [(label, t) for label, t in grid if label not in dict(thresholds)]
-        for label, t in thresholds:
+        for label, t in wanted[name]:
             start = time.perf_counter()
             quantities = theory_quantities(sketches.phis[name], thresholded(inst.f, t), inst.x_star,
                                            inst.maximizers, inst.N, params.E5_DELTA)
@@ -70,14 +69,19 @@ def unit_e1(params: Params, payload: dict) -> dict:
 
 
 def unit_sweep(params: Params, payload: dict) -> dict:
-    """E3 / E5a / E2-budget sweep: every budget, thresholds adaptive, zero and exact."""
+    """E2-budget and E3 sweep ("decode"): every budget, thresholds adaptive, zero and exact.
+    E5a sweep ("problem2"): budgets up to E5_N_MAX, Problem II only at the exact threshold."""
     inst = Instance(params, payload["descriptor"])
     sketches = SketchSet(params, inst, names=sketch_names(params, payload["descriptor"], "single"))
-    modes = [{"mode": "adaptive"}, {"mode": "fixed", "label": "zero", "t": 0.0},
-             {"mode": "fixed", "label": "q_exact", "t": inst.q_exact}]
+    exact = {"mode": "fixed", "label": "q_exact", "t": inst.q_exact}
+    if payload["kind"] == "problem2":
+        budgets, modes, problem2_only = params.e5_budgets, [], [exact]
+    else:
+        budgets, problem2_only = params.budgets, None
+        modes = [{"mode": "adaptive"}, {"mode": "fixed", "label": "zero", "t": 0.0}, exact]
     records = []
     for sample_id in payload["sample_ids"]:
-        for rec in mcco_sample(params, inst, sketches, sample_id, params.budgets, modes):
+        for rec in mcco_sample(params, inst, sketches, sample_id, budgets, modes, problem2_only=problem2_only):
             rec["experiment"] = "sweep"
             rec["role"] = payload["role"]
             records.append(rec)
