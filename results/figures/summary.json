@@ -1,0 +1,65 @@
+{
+  "results_dir": "/home/baptiste/Gdrive/Projects/mcco_paper/results",
+  "bootstrap": {
+    "samples": 2000,
+    "seed": 20260927,
+    "levels": "instances, then runs",
+    "interval": "95% percentile"
+  },
+  "success_level": 0.9,
+  "e5_m_bound": "valid",
+  "e5b_budgets": [
+    800,
+    6400,
+    51200
+  ],
+  "record_counts": {
+    "runs": 708000,
+    "theory": 4264,
+    "instances": 1101
+  },
+  "e5": {
+    "e1/L/R5/32/quadruplet": {
+      "n_eq7": 1232214.543283029
+    },
+    "e1/L/R5/32/quintuplet": {
+      "n_eq7": 3927326.102768318
+    },
+    "e1/W/R5/34/quadruplet": {
+      "n_eq7": 462351420.9367776
+    },
+    "e1/W/R5/34/quintuplet": {
+      "n_eq7": 3574031.201618713
+    },
+    "n=800/quadruplet": {
+      "instances_with_exponent": 308,
+      "spearman_rho": 0.20273737968556324,
+      "instances_without_exponent": 692
+    },
+    "n=800/quintuplet": {
+      "instances_with_exponent": 384,
+      "spearman_rho": 0.16695942904730324,
+      "instances_without_exponent": 616
+    },
+    "n=6400/quadruplet": {
+      "instances_with_exponent": 308,
+      "spearman_rho": 0.2720011079108006,
+      "instances_without_exponent": 692
+    },
+    "n=6400/quintuplet": {
+      "instances_with_exponent": 384,
+      "spearman_rho": 0.2029120058527559,
+      "instances_without_exponent": 616
+    },
+    "n=51200/quadruplet": {
+      "instances_with_exponent": 308,
+      "spearman_rho": 0.5099039721344815,
+      "instances_without_exponent": 692
+    },
+    "n=51200/quintuplet": {
+      "instances_with_exponent": 384,
+      "spearman_rho": 0.45821082573041694,
+      "instances_without_exponent": 616
+    }
+  }
+}

@@ -136,7 +136,10 @@ reproduced individually. See §8 for where they are stored.
 
 Per run:
 
-- **Success**: `f(x̂) = f*`, where `x̂` is the best of the 5 candidates by `f`.
+- **Success**: `f(x̂) = f*`, where `x̂` is the best by `f` of the sampled strings and the 5
+  MP candidates (no extra query: the sampled values are known). Same rule as digital annealing,
+  which returns the best of all its queries. The MP-only outcome (best of the 5 candidates) is
+  also recorded, and is the one used in E2.
 - **Functional distance** `f* − f(x̂)`, in units of `σ_f` (standard deviation of `f` over
   `{0,1}^N`), as in the original Fig. 3.
 - **Percentile rank** of `x̂`: fraction of `x ∈ {0,1}^N` with `f(x) ≤ f(x̂)` (exact, from
@@ -150,7 +153,6 @@ Aggregates:
 
 - Success rate vs `n`, with 95% intervals from a two-level bootstrap (resample
   instances, then samples within instances).
-- `n_90`: smallest budget reaching 90% ensemble success rate.
 - Median functional distance and median percentile rank, with IQR.
 
 ### Theory checks
@@ -192,21 +194,25 @@ the proof of Theorem 1 where the exact maximum over `2^{2N}` pairs is too costly
 - Two families (L, W) × five values of `|R|` (1, …, 5), `N = 20`.
 - Same MCCO settings on both families, no per-family tuning.
 - Three sketches + digital annealing on the same budget axis (queries to `f`).
-- **Figure**: success rate vs `n`, one panel per family and `|R|` (or `|R|` summarized
-  by `n_90` if the panels are too many).
-- Summary: `n_90` for each method, family and `|R|`. Similar results on L and W are
-  the evidence that MCCO works without knowing the structure.
+- **Figure**: success rate vs `n`, one panel per family and `|R|`; companion figure with the
+  median distance to the optimum. Similar results on L and W are the evidence that MCCO works
+  without knowing the structure.
 
 ### E2 — Threshold sweep
 
-- One instance per family from the `|R| = 5` ensembles, with a unique maximizer, whose gap `γ` and sparsity `s` are closest
-  to the ensemble medians.
+- One instance per family from the `|R| = 5` ensembles (pool: unique maximizer), with a typical
+  success probability. From the E1 runs (J = 10, adaptive threshold, MP-only outcome), s_ik(n) is
+  the success rate of instance i with sketch k at budget n, and m_k(n) its median over the pool.
+  The instance minimizes d_i = Σ_k Σ_n |s_ik(n) − m_k(n)| over the whole grid (a single budget is
+  too noisy at J = 10). With the first run: L/48 and W/26.
 - Sweep `t` from 0 (no thresholding) to above `f(x₂)`, on a percentile grid of the
-  values of `f`. Mark `t = f(x₂)` (limit of `prop:threshold`) on the plot.
-- Fixed budget `n`, taken from the E1 grid where success is neither 0 nor 1 without
-  thresholding.
+  values of `f`. The figure uses the percentile axis (0 to 99.9) and marks the E1 threshold
+  percentile `Q = 85`; the points `t = f(x₂)` and above are recorded but not plotted.
+- Fixed budget n*: the budget where the mean over sketches of m_k(n) is closest to 0.5
+  (6400 for both families with the first run).
 - `J = 300` on these instances, since this is a per-instance probability.
-- **Figure**: success probability vs `t`, three sketches.
+- **Figure**: success probability (row 1) and distance to the optimum (row 2) vs the
+  threshold percentile, MP-only outcome (effect of the threshold on the decoding).
 - Also record `Var(T_t f)` for edit 6, and the theory checks of §4 at each `t`.
 
 ### E3 — Sketch/rule mismatch
@@ -214,23 +220,28 @@ the proof of Theorem 1 where the exact maximum over `2^{2N}` pairs is too costly
 - Mismatch: the shape of the rules differs from the shape of the sketch.
 - The E1 ensembles mix sizes 4–6, so every sketch there is partially mismatched. E3
   isolates the effect with a dedicated instance from the same generator restricted to
-  `k_r = 4` (family L, quadruplet rules only), `|R| = 5`, with a unique maximizer.
-- Sketches: quadruplet (matched), quintuplet (mismatched), random (reference).
+  `k_r = 4` (family L, quadruplet rules only), `|R| = 3`: draw 0 of the generator, whatever
+  its number of maximizers.
+- Sketches: quadruplet (matched), quintuplet (mismatched).
 - `J = 300` on this instance.
-- **Figure** (or panel): success probability vs `n` for the three sketches.
+- **Figure**: (a) success probability and (b) distance to the optimum vs `n`, two sketches.
 - Theory checks of §4 on this instance.
 
 ### E5 — Theory check (main text)
 
 One figure, two panels, on instances with a unique maximizer.
 
-- **(a) Per instance: failure vs sample size.** On the E2 and E3 instances (`J = 300`),
-  empirical probability that Problem II fails, `P(argmax F̃_{S_n} ≠ x*)`, vs `n` on a log
-  scale, one curve per sketch. Overlaid: the bound of Eq. (6) computed from `Θ_min`,
-  `σ²`, `M` of `T_t f`, and a vertical line at the sample size of Eq. (7) for `δ = 0.1`.
-  With the `2^N` union factor and the bound on `M`, the bound is likely above 1 over much
-  of the grid; the comparison is then on the exponential decay rate in `n`, which is the
-  content of Theorem 1.
+- **(a) Per instance: failure vs sample size.** On two E5 instances (`J = 300`), empirical
+  probability that Problem II fails, `P(argmax F̃_{S_n} ≠ x*)`, vs `n` on a log scale up to
+  `n = 409.6k` (`E5_N_MAX`), one curve per sketch. Overlaid: the bound of Eq. (6) computed
+  from `Θ_min`, `σ²`, `M` of `T_t f` (`t` = exact 85th percentile), and a vertical line at the
+  sample size of Eq. (7) for `δ = 0.1`.
+  Selection of the E5 instances, per family: among E1 instances with `|R| ≥ 2`, a unique
+  maximizer and `Θ_min > 0` for both structured sketches, the one minimizing
+  `max(n*_quadruplet, n*_quintuplet)`, where `n* = N ln 2 · (2σ²/Θ² + 2M/(3Θ))` is the budget at
+  which Eq. (6) falls below 1. (`|R| = 1` instances are excluded: they are the same function
+  up to the reward.) With the first run's theory records this gives `e1/L/R3/35` and
+  `e1/W/R4/34`, with `n*` ≈ 0.1–0.3 · 2²⁰, so the bound becomes informative on the grid.
 - **(b) Across instances: success vs predicted exponent.** For each E1 instance, empirical
   Problem II success rate at a fixed `n` vs the exponent
   `n Θ_min² / (2σ² + (2/3) M Θ_min)` of Eq. (6). Theorem 1 predicts a monotone relation:
@@ -242,7 +253,8 @@ outside `K`) are recorded (§4) but not plotted.
 
 ### E4 — Computational cost (table)
 
-- From the E1 runs: median wall-clock per method at `n_90`, split by stage.
+- From the E1 runs: median wall-clock per method and family at `n = 102.4k` (`N_MAX`), `|R|`
+  pooled, split by stage.
 - Hardware and implementation versions reported.
 
 ### Later — scaling in N (workstation)
