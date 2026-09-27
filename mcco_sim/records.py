@@ -20,6 +20,9 @@ import troma
 
 from .params import Params, params_hash
 
+# JSON-lines files are split into parts of at most this size (GitHub warns above 50 MB, refuses above 100 MB)
+PART_BYTES = 50 * 1024 ** 2
+
 
 def _json_default(obj):
     if isinstance(obj, np.integer):
@@ -117,28 +120,40 @@ class Output:
     def path(self, name: str) -> Path:
         return self.dir / name
 
+    def parts(self, name: str) -> list[Path]:
+        """Existing parts of a JSON-lines file, in order: ``runs.jsonl``, ``runs.001.jsonl``, ``runs.002.jsonl``, ..."""
+        stem, ext = name.rsplit(".", 1)
+        first = self.path(name)
+        rest = sorted(self.dir.glob(f"{stem}.[0-9][0-9][0-9].{ext}"))
+        return ([first] if first.exists() else []) + rest
+
+    def lines(self, name: str):
+        """Lines of a JSON-lines file across all its parts."""
+        for path in self.parts(name):
+            with open(path) as fh:
+                yield from fh
+
     def append(self, name: str, records: list[dict]) -> None:
-        with open(self.path(name), "a") as fh:
-            for rec in records:
-                fh.write(dumps(rec) + "\n")
+        data = "".join(dumps(rec) + "\n" for rec in records).encode()
+        parts = self.parts(name)
+        target = parts[-1] if parts else self.path(name)
+        if target.exists() and target.stat().st_size > 0 and target.stat().st_size + len(data) > PART_BYTES:
+            stem, ext = name.rsplit(".", 1)
+            target = self.path(f"{stem}.{len(parts):03d}.{ext}")
+        with open(target, "ab") as fh:
+            fh.write(data)
             fh.flush()
             os.fsync(fh.fileno())
 
     def done_units(self) -> set[str]:
-        path = self.path("progress.jsonl")
-        if not path.exists():
-            return set()
-        with open(path) as fh:
-            return {json.loads(line)["unit"] for line in fh if line.strip()}
+        return {json.loads(line)["unit"] for line in self.lines("progress.jsonl") if line.strip()}
 
     def load(self, name: str) -> list[dict]:
         """Records of committed units only (a crash mid-write can leave uncommitted lines)."""
-        path = self.path(name)
-        if not path.exists():
+        if not self.parts(name):
             return []
         done = self.done_units()
-        with open(path) as fh:
-            return [rec for rec in map(json.loads, fh) if rec.get("unit") in done]
+        return [rec for rec in map(json.loads, self.lines(name)) if rec.get("unit") in done]
 
     def write_json(self, name: str, obj) -> None:
         with open(self.path(name), "w") as fh:

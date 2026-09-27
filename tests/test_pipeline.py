@@ -4,6 +4,7 @@ import json
 
 import pytest
 
+from mcco_sim import records
 from mcco_sim.records import Output
 from mcco_sim.stages import STAGES
 
@@ -27,13 +28,11 @@ def completed(tiny, tmp_path_factory):
 
 
 def _count(out, name):
-    with open(out.path(name)) as fh:
-        return sum(1 for _ in fh)
+    return sum(1 for _ in out.lines(name))
 
 
 def _runs(out):
-    with open(out.path("runs.jsonl")) as fh:
-        return [json.loads(line) for line in fh]
+    return [json.loads(line) for line in out.lines("runs.jsonl")]
 
 
 def test_record_counts(tiny, completed):
@@ -60,16 +59,14 @@ def test_random_sketch_subset(completed):
     assert all(r["experiment"] == "e1" and r["instance_id"] < RANDOM_K for r in random_runs)
     ids = {(r["instance_key"]) for r in random_runs}
     assert len(ids) == 2 * 5 * RANDOM_K
-    with open(completed.path("theory.jsonl")) as fh:
-        theory = [json.loads(line) for line in fh]
+    theory = [json.loads(line) for line in completed.lines("theory.jsonl")]
     random_theory = [r for r in theory if r["sketch"] == "random"]
     assert random_theory and all(r["ensemble"] == "e1" and r["instance_id"] < RANDOM_K
                                  and r["t_label"] in ("zero", "q_exact") for r in random_theory)
 
 
 def test_theory_labels_unique(completed):
-    with open(completed.path("theory.jsonl")) as fh:
-        keys = [(r["instance_key"], r["sketch"], r["t_label"]) for r in map(json.loads, fh)]
+    keys = [(r["instance_key"], r["sketch"], r["t_label"]) for r in map(json.loads, completed.lines("theory.jsonl"))]
     assert len(keys) == len(set(keys))
 
 
@@ -87,13 +84,25 @@ def test_resume_skips_finished_units(tiny, completed, capsys):
     assert _count(completed, "runs.jsonl") == before
 
 
+def test_parts_split_and_reload(tiny, tmp_path, monkeypatch):
+    monkeypatch.setattr(records, "PART_BYTES", 200)
+    out = Output(tmp_path, tiny)
+    recs = [{"unit": f"u{i}", "x": "a" * 40} for i in range(10)]
+    for rec in recs:
+        out.append("runs.jsonl", [rec])
+    out.append("progress.jsonl", [{"unit": rec["unit"]} for rec in recs])
+    names = [p.name for p in out.parts("runs.jsonl")]
+    assert names[:2] == ["runs.jsonl", "runs.001.jsonl"] and len(names) > 2
+    assert all(p.stat().st_size <= 200 for p in out.parts("runs.jsonl"))
+    assert out.load("runs.jsonl") == recs
+
+
 def test_other_params_refused(tiny, completed):
     with pytest.raises(SystemExit):
         Output(completed.dir, tiny.replace(J=3))
 
 
 def test_seeds_recorded(completed):
-    with open(completed.path("runs.jsonl")) as fh:
-        rec = json.loads(fh.readline())
+    rec = json.loads(next(completed.lines("runs.jsonl")))
     assert {"instance_seed", "unit"} <= set(rec)
     assert "sample_seed" in rec or "run_seed" in rec
