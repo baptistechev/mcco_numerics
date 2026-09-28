@@ -23,6 +23,8 @@ and write JSON-lines records; figures are made from these records only.
 | `mcco_sim/checks.py`, `pilot.py` | correctness checks; pilot run and compute estimate |
 | `mcco_sim/aggregates.py` | two-level bootstrap, Wilson intervals (used by `plot.py`) |
 | `mcco_sim/posthoc.py` | best sampled string of a run (new runs, and recomputation for old records) |
+| `mcco_sim/bp.py`, `mcco_sim/walsh.py`, `mcco_sim/s2.py` | S1 basis pursuit; Walsh coefficients and the S2 error budget |
+| [`supplementary.py`](supplementary.py) | supplementary figures S1–S3 |
 | `tests/` | pytest: the checks, params loading, every stage on tiny params |
 | [`pyproject.toml`](pyproject.toml) | dependencies (Python ≥ 3.11, pinned numpy/scipy, TrOMA), package and pytest settings |
 
@@ -132,6 +134,30 @@ The sweep no longer runs the E2 instances (they only served the old E2 budget ch
 theory stage recomputes the E1 theory, which is deterministic and identical to `results/`. It
 costs about 5 CPU-h, mostly the random sketch on its 100 instances, and is needed for the E5
 selection. `tuning`, `e1` and `e2` are not rerun.
+
+## Supplementary numerics (`supplementary_numerics_plan.md`)
+
+```bash
+python run.py --stage s1 --out results_s1 --workers 48          # S1: basis-pursuit decoding (workstation)
+python supplementary.py results --e2 results_e2 --e3-e5 results_v2 --s1 results_s1 --figures figures_supp --workers 8
+```
+
+- **S1** (new runs): nonnegative basis pursuit on the same E1 samples, thresholds and sketches.
+  Its records go in `results_s1/`. The matching-pursuit outcomes come from the E1 records.
+  `s1` is not part of `--stage all`. Memory: a worker holding the random sketch uses about 5.5 GB.
+- **S2** (post hoc, no new runs): error budget of the structured sketches in the ±1 Walsh basis
+  (`mcco_sim/walsh.py`, `mcco_sim/s2.py`). The per-instance and per-run tables are cached in the
+  figures directory.
+- **S3** (plotting only): per-instance E1 success at n = 6400.
+- Without `--s1`, S2 and S3 are made and S1 is skipped.
+
+| Output | Content |
+|---|---|
+| `s1_decoders.pdf`, `s1_success.csv`, `s1_bp_diagnostics.csv` | success vs n, BP vs MP (decoder-only, bootstrap intervals), rows = families, columns = sketches; decode times, η and BP residuals |
+| `s2a_coefficient_error.pdf` | ε_samp vs n (E5a instances) and vs threshold (E2 instances), with the Hoeffding + union bound, Δ/(4k) and the bias b_t |
+| `s2b_sketching_error.pdf`, `s2_instances.csv` | L/Δ vs ‖f − F_K‖∞/Δ per unique-maximizer E1 instance, colored by E1 success |
+| `s2c_condition.csv`, `.tex`, `s2_runs.csv` | fraction of runs with kε + L < Δ/2, split by argmax F̂_K = x* and by Problem II success |
+| `s3_success_distribution*.pdf`, `s3_success_vs_properties.pdf`, `s3_per_instance_success.csv` | per-instance success histograms (\|R\| = 5, and all \|R\|), success vs γ/f* and WH sparsity |
 
 ## Outputs (`--out`)
 

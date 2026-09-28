@@ -36,6 +36,31 @@ def threshold_sample(sample: Sample, t: float) -> Sample:
                   dit_strings=[sample.dit_strings[i] for i in keep])
 
 
+def sampled_budgets(params: Params, inst: Instance, sample_id: int, budgets: list[int]):
+    """The sampling step shared by MCCO (mcco_sample) and the basis-pursuit decoder (S1): for each
+    budget n, the prefix of length n of the sample (drawn for n_max = max(budgets)), sampled through
+    troma, and the adaptive threshold (Q-th percentile of the n sampled values, zeros included)."""
+    N = inst.N
+    indexes_all = sample_indexes(params, inst.d["instance_seed"], sample_id, max(budgets), N)
+    for n in budgets:
+        prefix = indexes_all[:n]
+
+        def prefix_sampler(n_samples, length, dimension, seed=None, prefix=prefix):
+            return prefix[:n_samples], DitString.from_integers(prefix[:n_samples], length, dimension)
+
+        oracle = CountingOracle(inst.f, N)
+        problem = CombinatorialProblem(oracle, problem_size=N)
+        start = time.perf_counter()
+        full_sample = problem.sampling(n, sampling_function=prefix_sampler, threshold_parameter=None)
+        sampled_values = np.concatenate([np.asarray(full_sample.values, dtype=float),
+                                         np.zeros(n - len(full_sample.values))])
+        t_adaptive = float(np.percentile(sampled_values, params.Q))
+        time_sampling = time.perf_counter() - start
+        assert oracle.queries == n
+        yield {"n": n, "prefix": prefix, "oracle": oracle, "problem": problem, "full_sample": full_sample,
+               "t_adaptive": t_adaptive, "time_sampling": time_sampling}
+
+
 def mcco_sample(params: Params, inst: Instance, sketches: SketchSet, sample_id: int, budgets: list[int],
                 modes: list[dict], problem2_only: list[dict] | None = None) -> list[dict]:
     """All MCCO runs of one sample: every budget (prefix), threshold mode and sketch.
@@ -47,24 +72,11 @@ def mcco_sample(params: Params, inst: Instance, sketches: SketchSet, sample_id: 
     N = inst.N
     sample_seed = derive_seed(params, "sample", inst.d["instance_seed"], sample_id)
     n_max = max(budgets)
-    indexes_all = sample_indexes(params, inst.d["instance_seed"], sample_id, n_max, N)
     q = params.Q
     records = []
-    for n in budgets:
-        prefix = indexes_all[:n]
-
-        def prefix_sampler(n_samples, length, dimension, seed=None):
-            return prefix[:n_samples], DitString.from_integers(prefix[:n_samples], length, dimension)
-
-        oracle = CountingOracle(inst.f, N)
-        problem = CombinatorialProblem(oracle, problem_size=N)
-        start = time.perf_counter()
-        full_sample = problem.sampling(n, sampling_function=prefix_sampler, threshold_parameter=None)
-        sampled_values = np.concatenate([np.asarray(full_sample.values, dtype=float),
-                                         np.zeros(n - len(full_sample.values))])
-        t_adaptive = float(np.percentile(sampled_values, q))
-        time_sampling = time.perf_counter() - start
-        assert oracle.queries == n
+    for step in sampled_budgets(params, inst, sample_id, budgets):
+        n, prefix, oracle, problem = step["n"], step["prefix"], step["oracle"], step["problem"]
+        full_sample, t_adaptive, time_sampling = step["full_sample"], step["t_adaptive"], step["time_sampling"]
         in_sample = set(prefix.tolist())
 
         for decode, mode in [(True, m) for m in modes] + [(False, m) for m in (problem2_only or [])]:

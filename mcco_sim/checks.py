@@ -126,7 +126,40 @@ def check_annealing(params: Params) -> list[dict]:
     ]
 
 
-CHECKS = [check_spectrum, check_structured_phi, check_theory_brute_force, check_mcco, check_annealing]
+def check_bp(params: Params) -> list[dict]:
+    """Basis pursuit (S1): exact LP optimum at eta = 0, feasibility and objective at eta > 0, and the
+    noise level eta against an explicit per-draw variance, at N = 8, structured and dense sketches."""
+    from scipy.optimize import linprog
+
+    from .bp import bp_nonneg, noise_level, spectral_norm
+
+    small = _small(params)
+    inst = Instance(small, instance_descriptor(small, "e1", "W", 3, 0))
+    size = 2 ** 8
+    rng = np.random.default_rng(5)
+    results = []
+    for name, phi in SketchSet(small, inst).phis.items():
+        Phi = np.array([phi.column(x) for x in range(size)]).T
+        sample = rng.integers(0, size, 300)
+        g = inst.f[sample]
+        n = sample.size
+        y = Phi[:, sample] @ g
+        explicit = np.sqrt(np.sum(n * ((Phi[:, sample] * g) ** 2).mean(axis=1) - n * (Phi[:, sample] @ g / n) ** 2))
+        eta = noise_level(phi, sample, g, n, size)
+        results.append(_result(f"BP noise level {name}", np.isclose(eta, explicit, rtol=1e-9), f"eta {eta:.4g}"))
+        lp = linprog(np.ones(size), A_eq=Phi, b_eq=y, bounds=(0, None), method="highs")
+        norm = spectral_norm(phi, size)
+        z, d = bp_nonneg(phi, y, 0.0, size, 5000, norm)
+        results.append(_result(f"BP eta=0 vs LP {name}", np.isclose(d["bp_l1"], lp.fun, rtol=1e-3)
+                               and d["bp_residual"] <= 1e-3 * np.linalg.norm(y),
+                               f"l1 {d['bp_l1']:.5g} lp {lp.fun:.5g}"))
+        z, d = bp_nonneg(phi, y, eta, size, 5000, norm)
+        results.append(_result(f"BP eta>0 {name}", d["bp_residual"] <= eta * 1.01 and d["bp_l1"] <= lp.fun * (1 + 1e-6)
+                               and z.min() >= 0, f"residual/eta {d['bp_residual_over_eta']:.4f}"))
+    return results
+
+
+CHECKS = [check_spectrum, check_structured_phi, check_theory_brute_force, check_mcco, check_annealing, check_bp]
 
 
 def run_all(params: Params, verbose: bool = True) -> list[dict]:

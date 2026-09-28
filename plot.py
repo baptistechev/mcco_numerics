@@ -24,6 +24,12 @@ The plotting settings below only affect the figures, not the simulation.
 
 from __future__ import annotations
 
+import os
+
+# One BLAS thread per process (the process pool provides the parallelism), set before numpy loads.
+for _var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
+    os.environ.setdefault(_var, "1")
+
 import argparse
 import json
 import math

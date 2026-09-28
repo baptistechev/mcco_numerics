@@ -40,6 +40,8 @@ class Params:
     E3_RULE_LENGTHS: tuple
     E5_DELTA: float
     E5_N_MAX: int
+    S1_R_VALUES: tuple
+    S1_BP_ITERATIONS: int
     PILOT_INSTANCES: int
     PILOT_SAMPLES: int
     BLOCK_SIZE: int

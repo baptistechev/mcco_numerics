@@ -55,6 +55,10 @@ E3_RULE_LENGTHS = (4,)
 E5_DELTA = 0.1                  # delta of the sample size of Eq. (7)
 E5_N_MAX = 409_600              # budget grid of the E5a sweep: N_MIN * 2^j up to E5_N_MAX (E1 stays at N_MAX)
 
+# --- S1 (supplementary): basis pursuit vs matching pursuit -----------------------------------------
+S1_R_VALUES = (5,)              # E1 ensembles (|R|) decoded by basis pursuit, both families, all I instances
+S1_BP_ITERATIONS = 1000         # Chambolle-Pock iterations per decode (fixed, no stopping rule)
+
 # --- Pilot (timings and compute estimate) ----------------------------------------------------------
 PILOT_INSTANCES = 10
 PILOT_SAMPLES = 2

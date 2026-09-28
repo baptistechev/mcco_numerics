@@ -6,11 +6,17 @@ import multiprocessing
 import time
 from datetime import datetime, timezone
 
+import numpy as np
+from troma import DitString
+
 from .annealing import da_grid, da_runs
+from .bp import bp_nonneg, noise_level, spectral_norm, top_entries
 from .instances import Instance
-from .mcco import mcco_sample
+from .mcco import mcco_sample, sampled_budgets, threshold_sample
 from .params import Params
+from .posthoc import best_sampled, combined_estimate
 from .records import Output
+from .seeds import derive_seed
 from .sketches import SketchSet, sketch_names
 from .theory import e2_thresholds, theory_quantities, thresholded
 
@@ -101,6 +107,59 @@ def unit_e2(params: Params, payload: dict) -> dict:
     return {"runs": records}
 
 
+def unit_s1(params: Params, payload: dict) -> dict:
+    """S1: basis-pursuit decoding of E1 samples (same sample, adaptive threshold and troma sketch as the
+    E1 runs, so the pair with the E1 matching-pursuit outcome is exact). One unit = one instance, the
+    given sample ids and sketches (small units balance the load over many workers)."""
+    inst = Instance(params, payload["descriptor"])
+    sketches = SketchSet(params, inst, names=payload["sketches"])
+    size = 2 ** inst.N
+    norms = {name: spectral_norm(sketches.phis[name], size) for name in sketches.names}
+    records = []
+    for sample_id in payload["sample_ids"]:
+        sample_seed = derive_seed(params, "sample", inst.d["instance_seed"], sample_id)
+        for step in sampled_budgets(params, inst, sample_id, params.budgets):
+            n, problem, oracle, prefix = step["n"], step["problem"], step["oracle"], step["prefix"]
+            thresholded_sample = threshold_sample(step["full_sample"], step["t_adaptive"])
+            in_sample = set(prefix.tolist())
+            x_sample, f_sample = best_sampled(inst.f, prefix)
+            for name in sketches.names:
+                phi = sketches.phis[name]
+                problem.sample = thresholded_sample
+                start = time.perf_counter()
+                y = np.asarray(problem.sketching(sketches.maps[name]).sketch_values, dtype=float)
+                time_sketching = time.perf_counter() - start
+                start = time.perf_counter()
+                eta = noise_level(phi, np.asarray(thresholded_sample.indexes, dtype=np.int64),
+                                  np.asarray(thresholded_sample.values, dtype=float), n, size)
+                if np.any(y):
+                    z, diagnostics = bp_nonneg(phi, y, eta, size, params.S1_BP_ITERATIONS, norms[name])
+                    candidates = top_entries(z, params.MP_ITERATIONS)
+                else:
+                    diagnostics, candidates = {}, []
+                time_decoding = time.perf_counter() - start
+                start = time.perf_counter()
+                values = [oracle(np.asarray(DitString.from_integer(x, inst.N))) for x in candidates]
+                time_candidates = time.perf_counter() - start
+                x_bp = candidates[int(np.argmax(values))] if candidates else None
+                f_bp = max(values) if candidates else None
+                x_hat = combined_estimate(x_bp, f_bp, x_sample, f_sample)
+                records.append({
+                    "record": "run", "method": "mcco", "experiment": "s1", "decoder": "bp", **inst.fields(),
+                    "sample_id": sample_id, "sample_seed": sample_seed, "sketch": name,
+                    "sketch_seed": sketches.seeds[name], "threshold_mode": "adaptive",
+                    "t": step["t_adaptive"], "n": n, "n_kept": len(thresholded_sample.values), "eta": eta,
+                    **diagnostics, "candidates": [[x, v] for x, v in zip(candidates, values)],
+                    "queries": n + sum(1 for x in candidates if x not in in_sample),
+                    **inst.evaluate_estimate(x_hat),
+                    **{f"{k}_mp": v for k, v in inst.evaluate_estimate(x_bp).items()},   # decoder-only outcome
+                    "sample_best_x": x_sample, "sample_best_f": f_sample, "sample_n_max": max(params.budgets),
+                    "time": {"sampling": step["time_sampling"], "sketching": time_sketching,
+                             "decoding": time_decoding, "candidates": time_candidates},
+                })
+    return {"runs": records}
+
+
 UNIT_FUNCTIONS = {
     "instances": unit_instance,
     "theory": unit_theory,
@@ -108,6 +167,7 @@ UNIT_FUNCTIONS = {
     "e1": unit_e1,
     "sweep": unit_sweep,
     "e2": unit_e2,
+    "s1": unit_s1,
 }
 
 

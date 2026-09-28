@@ -48,7 +48,10 @@ def test_record_counts(tiny, completed):
     n_e5 = sum(1 for s in completed.read_json("selection.json")["e5"].values() if s)
     sweep += n_e5 * tiny.J_SINGLE * len(tiny.e5_budgets) * len(single)  # E5a: Problem II rows only
     e2 = 2 * tiny.J_SINGLE * (len(tiny.E2_PERCENTILES) + 3) * len(single)
-    assert _count(completed, "runs.jsonl") == e1 + sweep + e2
+    s1_pairs = 2 * sum(tiny.I if spec["e1_instances"] is None else min(spec["e1_instances"], tiny.I)
+                       for spec in tiny.SKETCHES.values()) * len(tiny.S1_R_VALUES)
+    s1 = s1_pairs * tiny.J * n_budgets
+    assert _count(completed, "runs.jsonl") == e1 + sweep + e2 + s1
     # stage_e2 adds the grid on the E2 instances, without its t = 0 point (already in theory.jsonl)
     theory = 2 * e1_pairs + 2 * len(single) + 2 * len(single) * (len(tiny.E2_PERCENTILES) + 2)
     assert _count(completed, "theory.jsonl") == theory
@@ -59,7 +62,7 @@ def test_record_counts(tiny, completed):
 def test_random_sketch_subset(completed):
     random_runs = [r for r in _runs(completed) if r.get("sketch") == "random"]
     assert random_runs
-    assert all(r["experiment"] == "e1" and r["instance_id"] < RANDOM_K for r in random_runs)
+    assert all(r["experiment"] in ("e1", "s1") and r["instance_id"] < RANDOM_K for r in random_runs)
     ids = {(r["instance_key"]) for r in random_runs}
     assert len(ids) == 2 * 5 * RANDOM_K
     theory = [json.loads(line) for line in completed.lines("theory.jsonl")]
@@ -233,3 +236,31 @@ def test_old_records_give_same_figures(completed, tmp_path):
                                   pd.read_csv(tmp_path / "split" / "e2_threshold.csv"))
     pd.testing.assert_frame_equal(pd.read_csv(tmp_path / "new_figs" / "e3_mismatch.csv"),
                                   pd.read_csv(tmp_path / "old_only" / "e3_mismatch.csv"))
+
+
+def test_s1_basis_pursuit(tiny, completed):
+    s1 = [r for r in _runs(completed) if r.get("experiment") == "s1"]
+    assert s1 and all(r["decoder"] == "bp" and r["n_rules"] in tiny.S1_R_VALUES for r in s1)
+    # the thresholded sample and budget are those of the E1 run of the same sample
+    e1 = {(r["instance_key"], r["sample_id"], r["n"], r["sketch"]): r for r in _runs(completed)
+          if r["experiment"] == "e1" and r["record"] == "run" and r["method"] == "mcco"}
+    for r in s1:
+        twin = e1[(r["instance_key"], r["sample_id"], r["n"], r["sketch"])]
+        assert (r["t"], r["n_kept"], r["sample_best_f"]) == (twin["t"], twin["n_kept"], twin["sample_best_f"])
+        assert len(r["candidates"]) <= tiny.MP_ITERATIONS
+        if "bp_residual" in r:
+            assert r["bp_residual_over_eta"] < 1.05
+
+
+def test_supplementary_figures(completed, tmp_path):
+    import supplementary
+
+    supplementary.make_supplementary(completed.dir, tmp_path / "supp", e2_dir=completed.dir,
+                                     e3_e5_dir=completed.dir, s1_dir=completed.dir)
+    for name in supplementary.FIGURES_SUPP:
+        assert (tmp_path / "supp" / f"{name}.pdf").stat().st_size > 0
+    for name in ("s2_instances.csv", "s2_runs.csv", "s2c_condition.csv", "s2c_condition.tex", "s1_success.csv",
+                 "s1_bp_diagnostics.csv", "s3_per_instance_success.csv", "summary_supplementary.json"):
+        assert (tmp_path / "supp" / name).exists()
+    with pytest.raises(SystemExit):
+        supplementary.make_supplementary(completed.dir, tmp_path / "supp")

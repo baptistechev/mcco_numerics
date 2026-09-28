@@ -183,6 +183,19 @@ def stage_e2(out: Output, workers: int) -> None:
     execute(out, "e2", units, workers)
 
 
+def stage_s1(out: Output, workers: int) -> None:
+    """S1 (supplementary): basis-pursuit decoding of the E1 samples of the |R| in S1_R_VALUES.
+    The matching-pursuit outcome of the same samples is in the E1 records (results directory)."""
+    # One unit per (instance, sample, sketch): ~4000 units at |R| = 5, so many workers stay busy until
+    # the end (a random-sketch unit costs much more than a structured one).
+    params = out.params
+    units = [{"key": f"s1/{d['key']}/sample{j}/{name}",
+              "payload": {"descriptor": d, "sample_ids": [j], "sketches": [name]}}
+             for d in build_instance_descriptors(params)["e1"] if d["n_rules"] in params.S1_R_VALUES
+             for name in sketch_names(params, d, "e1") for j in range(params.J)]
+    execute(out, "s1", units, workers)
+
+
 STAGES = {
     "instances": stage_instances,
     "theory": stage_theory,
@@ -191,4 +204,8 @@ STAGES = {
     "sweep": stage_sweep,
     "e2select": stage_e2select,
     "e2": stage_e2,
+    "s1": stage_s1,
 }
+
+# Supplementary stages: not part of --stage all (run them explicitly).
+SUPPLEMENTARY_STAGES = ("s1",)

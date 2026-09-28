@@ -6,6 +6,7 @@
     python run.py --stage e1 --out results --workers 16 --params my_params.py
     python run.py --stage instances theory sweep --out results_v2 --workers 48
     python run.py --stage instances e2select e2 --out results_e2 --e1-records results --workers 48
+    python run.py --stage s1 --out results_s1 --workers 48
 
 Stages, run in this order by ``--stage all``:
     instances  every instance, exact ground truth, E2/E3 instance selection
@@ -17,6 +18,8 @@ Stages, run in this order by ``--stage all``:
     e2select   E2 instances and budget with typical E1 success curves (E1 runs of this directory,
                or of --e1-records DIR, read-only)
     e2         theory of the E2 threshold grid, then the threshold sweep at that budget
+Supplementary (not run by ``all``):
+    s1         basis-pursuit decoding of the E1 samples (S1), |R| in S1_R_VALUES
 Also: ``pilot`` (checks + timing run + compute estimate) and ``selftest`` (checks only).
 
 A stage can be interrupted and restarted with the same command: finished work units are
@@ -50,7 +53,7 @@ from mcco_sim.checks import run_all  # noqa: E402
 from mcco_sim.params import load_params  # noqa: E402
 from mcco_sim.pilot import pilot  # noqa: E402
 from mcco_sim.records import Output, provenance  # noqa: E402
-from mcco_sim.stages import STAGES  # noqa: E402
+from mcco_sim.stages import STAGES, SUPPLEMENTARY_STAGES  # noqa: E402
 
 DEFAULT_PARAMS = Path(__file__).resolve().parent / "params.py"
 
@@ -82,7 +85,8 @@ def main() -> None:
     if stage == "pilot":
         pilot(out)
     else:
-        for name in (STAGES if stage == "all" else [s for s in STAGES if s in args.stage]):
+        main = [s for s in STAGES if s not in SUPPLEMENTARY_STAGES]
+        for name in (main if stage == "all" else [s for s in STAGES if s in args.stage]):
             options = {"e1_records": args.e1_records} if name == "e2select" else {}
             STAGES[name](out, args.workers, **options)
     out.append("invocations.jsonl", [{"event": "end", "stage": stage,
