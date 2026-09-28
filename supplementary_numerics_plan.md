@@ -26,8 +26,10 @@ basis pursuit overfits the sample (R1-5).
   decoders spend the same number of queries.
 - `η`: the expected ℓ2 norm of the Monte-Carlo noise of `y = Σ_s T_t f(s) φ_s` over the `n` draws,
   estimated from the same draws: `η² = Σ_j [Σ_s (T_t f(s) φ_j(s))² − y_j²/n]`.
-- Scope: `|R| ∈ S1_R_VALUES = (5,)`, both families, all I instances, all sketches (random on its
-  usual E1 subset), all budgets, `J = 10`. Run: `python run.py --stage s1 --out results_s1`.
+- Scope: `|R| ∈ S1_R_VALUES = (5,)`, both families, instance ids < `S1_INSTANCES = 20`, samples
+  0..`S1_J − 1 = 4`, sketches `S1_SKETCHES` = quadruplet, quintuplet (random dropped: ~21 h per unit),
+  budgets `100, 400, …, 102400` (`S1_BUDGET_STRIDE = 2` down from `N_MAX`): 400 units, ~1.5 h on
+  16 workers. Run: `python run.py --stage s1 --out results_s1 --workers 16`.
 
 **Metrics.** Success, functional distance, percentile rank vs `n`; decoding wall-clock.
 

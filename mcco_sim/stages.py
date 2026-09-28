@@ -184,15 +184,17 @@ def stage_e2(out: Output, workers: int) -> None:
 
 
 def stage_s1(out: Output, workers: int) -> None:
-    """S1 (supplementary): basis-pursuit decoding of the E1 samples of the |R| in S1_R_VALUES.
+    """S1 (supplementary): basis-pursuit decoding of E1 samples: |R| in S1_R_VALUES, instance ids
+    < S1_INSTANCES, sample ids < S1_J, sketches in S1_SKETCHES, budgets params.s1_budgets.
     The matching-pursuit outcome of the same samples is in the E1 records (results directory)."""
-    # One unit per (instance, sample, sketch): ~4000 units at |R| = 5, so many workers stay busy until
-    # the end (a random-sketch unit costs much more than a structured one).
+    # One unit per (instance, sample, sketch), so many workers stay busy until the end.
     params = out.params
     units = [{"key": f"s1/{d['key']}/sample{j}/{name}",
               "payload": {"descriptor": d, "sample_ids": [j], "sketches": [name]}}
-             for d in build_instance_descriptors(params)["e1"] if d["n_rules"] in params.S1_R_VALUES
-             for name in sketch_names(params, d, "e1") for j in range(params.J)]
+             for d in build_instance_descriptors(params)["e1"]
+             if d["n_rules"] in params.S1_R_VALUES and d["instance_id"] < params.S1_INSTANCES
+             for name in sketch_names(params, d, "e1") if name in params.S1_SKETCHES
+             for j in range(min(params.S1_J, params.J))]
     execute(out, "s1", units, workers)
 
 

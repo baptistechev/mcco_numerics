@@ -50,22 +50,31 @@ class StructuredPhi:
         xs = self._xs if xs is None else xs
         return (xs >> (self.N - i - self.k)) & (self.P - 1)
 
-    def _window_view(self, v: np.ndarray, i: int) -> np.ndarray:
-        """v indexed as (bits before window i, window pattern, bits after): MSB-first index order."""
-        return v.reshape(2 ** i, self.P, 2 ** (self.N - i - self.k))
-
     def apply(self, v: np.ndarray) -> np.ndarray:
-        """Phi @ v for a dense v over {0,1}^N (row (i, c) sums v over the x with pattern c in window i)."""
-        v = np.asarray(v, dtype=float)
-        return np.concatenate([self._window_view(v, i).sum(axis=(0, 2)) for i in range(self.W)])
+        """Phi @ v for a dense v over {0,1}^N (row (i, c) sums v over the x with pattern c in window i).
+        The leading bits are summed out one at a time (L = v summed over the bits before window i), so
+        the cost is ~2 * 2^N instead of W * 2^N."""
+        L = np.asarray(v, dtype=float)
+        out = np.empty((self.W, self.P))
+        for i in range(self.W):
+            out[i] = L.reshape(self.P, -1).sum(axis=1)
+            if i < self.W - 1:
+                L = L.reshape(2, -1).sum(axis=0)
+        return out.ravel()
 
     def adjoint(self, y: np.ndarray) -> np.ndarray:
-        """Phi^T @ y, i.e. (Phi^T y)(x) = sum over windows i of y[i, pattern of x in window i]."""
+        """Phi^T @ y, i.e. (Phi^T y)(x) = sum over windows i of y[i, pattern of x in window i].
+        Built from the last window back: T (over the bits from window i on) = y[i] + T of window i + 1
+        repeated over bit i, so the cost is ~2 * 2^N instead of W * 2^N."""
         y = np.asarray(y, dtype=float).reshape(self.W, self.P)
-        out = np.zeros(2 ** self.N)
-        for i in range(self.W):
-            self._window_view(out, i)[...] += y[i][None, :, None]
-        return out
+        T = y[self.W - 1].copy()
+        for i in range(self.W - 2, -1, -1):
+            nxt = np.empty((2, T.size))
+            nxt[0] = T
+            nxt[1] = T
+            nxt.reshape(self.P, -1)[...] += y[i][:, None]
+            T = nxt.ravel()
+        return T
 
     def column(self, x: int) -> np.ndarray:
         col = np.zeros(self.m)

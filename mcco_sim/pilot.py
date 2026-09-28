@@ -61,12 +61,12 @@ def pilot(out: Output) -> None:
         timings["da"] += da
         print(f"[pilot] {d['key']} done", flush=True)
     # S1: one basis-pursuit decode per sketch on the first pilot instance (decode cost barely depends
-    # on n: every iteration acts on the 2^N entries of z). Free the loop's sketches first: with the
-    # random sketch, each SketchSet holds a 4.3 GB matrix, and two at once exceed a 16 GB machine.
+    # on n: every iteration acts on the 2^N entries of z), for the sketches of S1_SKETCHES. Free the
+    # loop's sketches first: with the random sketch, each SketchSet holds a 4.3 GB matrix.
     del sketches
     gc.collect()
     s1 = unit_s1(params.replace(J=1, N_MIN=params.N_MAX),
-                 {"descriptor": chosen[0], "sample_ids": [0], "sketches": list(params.SKETCHES)})["runs"]
+                 {"descriptor": chosen[0], "sample_ids": [0], "sketches": list(params.S1_SKETCHES)})["runs"]
     timings["s1_decode"] = {r["sketch"]: r["time"]["decoding"] for r in s1}
     print(f"[pilot] S1 decode seconds: {timings['s1_decode']}", flush=True)
     out.write_json("pilot_estimate.json", compute_estimate(params, timings))
@@ -135,12 +135,14 @@ def compute_estimate(params: Params, timings: dict) -> dict:
                                     + 2 * (len(params.E2_PERCENTILES) + 3) / 2 * sum(theory.get(s, 0.0) for s in single)),
     }
     if "s1_decode" in timings:
-        n_s1 = {s: len(params.FAMILIES) * len(params.S1_R_VALUES) * (params.I if spec["e1_instances"] is None
-                                                                        else min(spec["e1_instances"], params.I))
-                for s, spec in params.SKETCHES.items()}
+        s1_instances = min(params.S1_INSTANCES, params.I)
+        n_s1 = {s: len(params.FAMILIES) * len(params.S1_R_VALUES) * (s1_instances if spec["e1_instances"] is None
+                                                                        else min(spec["e1_instances"], s1_instances))
+                for s, spec in params.SKETCHES.items() if s in params.S1_SKETCHES}
+        s1_J = min(params.S1_J, J)
         estimate["s1 (supplementary)"] = sum(
-            n_s1[s] * J * (len(budgets) * timings["s1_decode"].get(s, 0.0)) for s in sketches) \
-            + len(params.FAMILIES) * len(params.S1_R_VALUES) * params.I * J * sum(sampling.values())
+            n_s1[s] * s1_J * (len(params.s1_budgets) * timings["s1_decode"].get(s, 0.0)) for s in n_s1) \
+            + sum(n_s1.values()) * s1_J * sum(sampling[n] for n in params.s1_budgets)
     total = sum(estimate.values())
     random_rows = [sketch_rows(params, s) for s in params.SKETCHES.values() if s["type"] == "gaussian"]
     report = {

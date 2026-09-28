@@ -138,13 +138,16 @@ selection. `tuning`, `e1` and `e2` are not rerun.
 ## Supplementary numerics (`supplementary_numerics_plan.md`)
 
 ```bash
-python run.py --stage s1 --out results_s1 --workers 48          # S1: basis-pursuit decoding (workstation)
+python run.py --stage s1 --out results_s1 --workers 16          # S1: basis-pursuit decoding (~1.5 h)
 python supplementary.py results --e2 results_e2 --e3-e5 results_v2 --s1 results_s1 --figures figures_supp --workers 8
 ```
 
 - **S1** (new runs): nonnegative basis pursuit on the same E1 samples, thresholds and sketches.
   Its records go in `results_s1/`. The matching-pursuit outcomes come from the E1 records.
-  `s1` is not part of `--stage all`. Memory: a worker holding the random sketch uses about 5.5 GB.
+  `s1` is not part of `--stage all`. Scope (`S1_*` in `params.py`): quadruplet and quintuplet
+  (random dropped, ~21 h per unit), instance ids < 20 per family, samples 0-4, every other budget
+  down from `N_MAX`: 400 units of 6 decodes. BP is memory-bandwidth bound: throughput peaks at
+  ~16 workers (one unit ~1 min alone, ~3.5 min with 16 workers running).
 - **S2** (post hoc, no new runs): error budget of the structured sketches in the ±1 Walsh basis
   (`mcco_sim/walsh.py`, `mcco_sim/s2.py`). The per-instance and per-run tables are cached in the
   figures directory.

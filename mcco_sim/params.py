@@ -41,6 +41,10 @@ class Params:
     E5_DELTA: float
     E5_N_MAX: int
     S1_R_VALUES: tuple
+    S1_SKETCHES: tuple
+    S1_INSTANCES: int
+    S1_J: int
+    S1_BUDGET_STRIDE: int
     S1_BP_ITERATIONS: int
     PILOT_INSTANCES: int
     PILOT_SAMPLES: int
@@ -59,10 +63,17 @@ class Params:
         """Budget grid of the E5a sweep: n = N_MIN * 2^j up to E5_N_MAX."""
         return doubling_grid(self.N_MIN, self.E5_N_MAX)
 
+    @property
+    def s1_budgets(self) -> list[int]:
+        """Budgets of S1: every S1_BUDGET_STRIDE-th budget counted down from N_MAX (the maximum must
+        stay N_MAX: the sample is drawn for the largest budget, as in E1)."""
+        return self.budgets[::-1][::self.S1_BUDGET_STRIDE][::-1]
+
     def to_dict(self) -> dict:
         values = dataclasses.asdict(self)
         values["budgets (derived)"] = self.budgets
         values["e5_budgets (derived)"] = self.e5_budgets
+        values["s1_budgets (derived)"] = self.s1_budgets
         return values
 
     def replace(self, **changes: Any) -> "Params":
@@ -99,6 +110,11 @@ def validate(params: Params) -> Params:
             raise ValueError(f"Sketch {name}: 'single_instance' must be True or False.")
     if not any(spec["single_instance"] for spec in params.SKETCHES.values()):
         raise ValueError("At least one sketch must have 'single_instance': True (sweep, E2).")
+    unknown_s1 = set(params.S1_SKETCHES) - set(params.SKETCHES)
+    if unknown_s1:
+        raise ValueError(f"S1_SKETCHES: unknown sketches {sorted(unknown_s1)}.")
+    if min(params.S1_INSTANCES, params.S1_J, params.S1_BUDGET_STRIDE) < 1:
+        raise ValueError("S1_INSTANCES, S1_J and S1_BUDGET_STRIDE must be >= 1.")
     return params
 
 

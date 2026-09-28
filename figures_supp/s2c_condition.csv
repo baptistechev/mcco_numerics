@@ -1,0 +1,5 @@
+source,sketch,runs,cond_T,cond_f,F_hat_success,cond_T_given_F_hat_success,cond_T_given_F_hat_failure,problem2_success,cond_T_given_problem2_success,cond_T_given_problem2_failure
+e2,quadruplet,9000,0.0,0.0,0.348,0.0,0.0,0.22822222222222222,0.0,0.0
+e2,quintuplet,9000,0.0,0.0,0.32,0.0,0.0,0.2788888888888889,0.0,0.0
+e5a,quadruplet,8400,0.0,0.0,0.6226190476190476,0.0,0.0,0.5307142857142857,0.0,0.0
+e5a,quintuplet,8400,0.0,0.0,0.5601190476190476,0.0,0.0,0.4767857142857143,0.0,0.0

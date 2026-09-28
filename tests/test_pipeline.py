@@ -17,7 +17,7 @@ def tiny(params):
     sketches = {name: dict(spec) for name, spec in params.SKETCHES.items()}
     sketches["random"]["e1_instances"] = RANDOM_K
     return params.replace(N=10, I=4, I_TUNING=2, J=2, J_SINGLE=6, N_MAX=400, E5_N_MAX=800, BLOCK_SIZE=3,
-                          SKETCHES=sketches)
+                          SKETCHES=sketches, S1_SKETCHES=("quintuplet", "random"), S1_INSTANCES=3, S1_J=1)
 
 
 @pytest.fixture(scope="module")
@@ -48,9 +48,9 @@ def test_record_counts(tiny, completed):
     n_e5 = sum(1 for s in completed.read_json("selection.json")["e5"].values() if s)
     sweep += n_e5 * tiny.J_SINGLE * len(tiny.e5_budgets) * len(single)  # E5a: Problem II rows only
     e2 = 2 * tiny.J_SINGLE * (len(tiny.E2_PERCENTILES) + 3) * len(single)
-    s1_pairs = 2 * sum(tiny.I if spec["e1_instances"] is None else min(spec["e1_instances"], tiny.I)
-                       for spec in tiny.SKETCHES.values()) * len(tiny.S1_R_VALUES)
-    s1 = s1_pairs * tiny.J * n_budgets
+    s1_pairs = 2 * sum(tiny.S1_INSTANCES if spec["e1_instances"] is None else min(spec["e1_instances"], tiny.S1_INSTANCES)
+                       for name, spec in tiny.SKETCHES.items() if name in tiny.S1_SKETCHES) * len(tiny.S1_R_VALUES)
+    s1 = s1_pairs * tiny.S1_J * len(tiny.s1_budgets)
     assert _count(completed, "runs.jsonl") == e1 + sweep + e2 + s1
     # stage_e2 adds the grid on the E2 instances, without its t = 0 point (already in theory.jsonl)
     theory = 2 * e1_pairs + 2 * len(single) + 2 * len(single) * (len(tiny.E2_PERCENTILES) + 2)
@@ -241,6 +241,9 @@ def test_old_records_give_same_figures(completed, tmp_path):
 def test_s1_basis_pursuit(tiny, completed):
     s1 = [r for r in _runs(completed) if r.get("experiment") == "s1"]
     assert s1 and all(r["decoder"] == "bp" and r["n_rules"] in tiny.S1_R_VALUES for r in s1)
+    assert all(r["sketch"] in tiny.S1_SKETCHES and r["instance_id"] < tiny.S1_INSTANCES and r["sample_id"] < tiny.S1_J
+               for r in s1)
+    assert tiny.s1_budgets == [100, 400] and {r["n"] for r in s1} == set(tiny.s1_budgets)
     # the thresholded sample and budget are those of the E1 run of the same sample
     e1 = {(r["instance_key"], r["sample_id"], r["n"], r["sketch"]): r for r in _runs(completed)
           if r["experiment"] == "e1" and r["record"] == "run" and r["method"] == "mcco"}

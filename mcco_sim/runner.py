@@ -118,7 +118,7 @@ def unit_s1(params: Params, payload: dict) -> dict:
     records = []
     for sample_id in payload["sample_ids"]:
         sample_seed = derive_seed(params, "sample", inst.d["instance_seed"], sample_id)
-        for step in sampled_budgets(params, inst, sample_id, params.budgets):
+        for step in sampled_budgets(params, inst, sample_id, params.s1_budgets):
             n, problem, oracle, prefix = step["n"], step["problem"], step["oracle"], step["prefix"]
             thresholded_sample = threshold_sample(step["full_sample"], step["t_adaptive"])
             in_sample = set(prefix.tolist())

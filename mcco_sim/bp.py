@@ -56,6 +56,7 @@ def bp_nonneg(phi, y: np.ndarray, eta: float, size: int, iterations: int, norm: 
     tau = sigma = 0.99 / norm
     z = np.zeros(size)
     z_bar = z.copy()
+    z_new = np.empty(size)
     u = np.zeros_like(y)
     for _ in range(iterations):
         # Dual step: prox of sigma F*, F = indicator of the ball B(y, eta), via Moreau.
@@ -64,10 +65,14 @@ def bp_nonneg(phi, y: np.ndarray, eta: float, size: int, iterations: int, norm: 
         norm_w = np.linalg.norm(w)
         projected = y + (w if norm_w <= eta else w * (eta / norm_w))
         u = v - sigma * projected
-        # Primal step: prox of tau (sum + indicator of z >= 0).
-        z_new = np.maximum(z - tau * phi.adjoint(u) - tau, 0.0)
-        z_bar = 2 * z_new - z
-        z = z_new
+        # Primal step: prox of tau (sum + indicator of z >= 0), in place (z has 2^N entries).
+        np.multiply(phi.adjoint(u), -tau, out=z_new)
+        z_new += z
+        z_new -= tau
+        np.maximum(z_new, 0.0, out=z_new)
+        np.subtract(z_new, z, out=z_bar)         # z_bar = 2 z_new - z
+        z_bar += z_new
+        z, z_new = z_new, z
     residual = float(np.linalg.norm(phi.apply(z) - y))
     return z, {"bp_residual": residual, "bp_residual_over_eta": residual / eta if eta > 0 else math.inf,
                "bp_l1": float(z.sum()), "bp_positive": int(np.count_nonzero(z > 0)),
