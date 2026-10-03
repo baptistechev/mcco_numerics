@@ -63,7 +63,7 @@ def check_structured_phi(params: Params) -> list[dict]:
 
 
 def check_theory_brute_force(params: Params) -> list[dict]:
-    """Theta_min, sigma^2 and the M bounds vs explicit Delta_x(s) over all (x, s) at N = 8."""
+    """Theta_min, nu^2 and the M bounds vs explicit Delta_x(s) over all (x, s) at N = 8."""
     small = _small(params)
     results = []
     for fam in ("L", "W"):
@@ -81,16 +81,16 @@ def check_theory_brute_force(params: Params) -> list[dict]:
                 fast = theory_quantities(phi, g, inst.x_star, inst.maximizers, 8, 0.1)
                 delta_x = g[:, None] * (G[:, [inst.x_star]] - G)          # Delta_x(s), rows s
                 theta = delta_x.mean(axis=0)
-                var = (delta_x ** 2).mean(axis=0) - theta ** 2
+                second = (delta_x ** 2).mean(axis=0)
                 mask = np.arange(2 ** 8) != inst.x_star
                 M_true = np.abs(delta_x - theta)[:, mask].max()
                 ok = (np.isclose(fast["theta_min"], theta[mask].min(), rtol=1e-9, atol=1e-12)
-                      and np.isclose(fast["sigma2"], var[mask].max(), rtol=1e-8, atol=1e-12)
+                      and np.isclose(fast["nu2"], second[mask].max(), rtol=1e-8, atol=1e-12)
                       and M_true <= fast["M"]["valid"] * (1 + 1e-12)
                       and (phi.kind == "dense" or M_true <= fast["M"]["plan_2m_sup"]))
                 results.append(_result(
                     f"theory brute force {fam} {name} t={t:.3g}", ok,
-                    f"theta {fast['theta_min']:.4g} sigma2 {fast['sigma2']:.4g} "
+                    f"theta {fast['theta_min']:.4g} nu2 {fast['nu2']:.4g} "
                     f"M {M_true:.3g} <= {fast['M']['valid']:.3g}"))
     return results
 

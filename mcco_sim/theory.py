@@ -40,9 +40,9 @@ def theory_quantities(phi, g: np.ndarray, x_star: int | None, maximizers: np.nda
     A = phi.weighted_gram(g ** 2)
     q_diag = phi.quad_diag(A) / size                    # E_s[g(s)^2 g^x(s)^2]
     q_star = phi.adjoint(A @ phi.column(x_star)) / size  # E_s[g(s)^2 g^x*(s) g^x(s)]
-    variance = q_star[x_star] - 2 * q_star + q_diag - theta ** 2
-    sigma2 = float(variance[others].max())
-    out["sigma2"] = sigma2
+    second = q_star[x_star] - 2 * q_star + q_diag        # E_s[Delta_x(s)^2]
+    nu2 = float(second[others].max())
+    out["nu2"] = nu2
 
     sup = float(np.abs(g).max())
     # |Delta_x(s) - Theta_x| <= 2 max_s |Delta_x(s)| <= 2 ||g||_inf max_{s,x} |G_{s,x*} - G_{s,x}|
@@ -57,8 +57,8 @@ def theory_quantities(phi, g: np.ndarray, x_star: int | None, maximizers: np.nda
     out["eq7_n"] = {}
     for label, M in bounds.items():
         if theta_min > 0:
-            exponent = theta_min ** 2 / (2 * sigma2 + (2.0 / 3.0) * M * theta_min)
-            n7 = (2 * sigma2 / theta_min ** 2 + 2 * M / (3 * theta_min)) * (N * math.log(2) + math.log(1 / delta))
+            exponent = theta_min ** 2 / (2 * nu2 + (2.0 / 3.0) * M * theta_min)
+            n7 = (2 * nu2 / theta_min ** 2 + 2 * M / (3 * theta_min)) * (N * math.log(2) + math.log(1 / delta))
         else:
             exponent, n7 = None, None
         out["eq6_exponent"][label] = exponent        # bound(n) = 2^N exp(-n * exponent)

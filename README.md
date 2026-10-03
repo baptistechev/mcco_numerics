@@ -16,7 +16,7 @@ and write JSON-lines records; figures are made from these records only.
 | `mcco_sim/seeds.py` | seeds derived from the master seed and the identifiers of each draw |
 | `mcco_sim/instances.py` | rule families L and W, exact spectrum and ground truth, E2 selection |
 | `mcco_sim/sketches.py` | TrOMA sketch maps and decoders; Φ algebra for Problem II and the theory |
-| `mcco_sim/theory.py` | surrogate F, Θ_min, σ², M bounds, Eq. (6)–(7) |
+| `mcco_sim/theory.py` | surrogate F, Θ_min, ν² (second moment), M bounds, Eq. (6)–(7) |
 | `mcco_sim/mcco.py` | MCCO runs through TrOMA: sample, threshold, sketch, matching pursuit |
 | `mcco_sim/annealing.py` | digital-annealing baseline |
 | `mcco_sim/stages.py`, `runner.py`, `records.py` | stages, work units and process pool, output directory |
@@ -77,6 +77,7 @@ python -m pytest                                        # test suite (~30 s)
 python plot.py results --e2 results_e2 --e3-e5 results_v2 --workers 8   # E1, E4, E5b from results; E2 from results_e2; E3, E5a from results_v2
 python plot.py results_v2 --workers 8                   # everything from one directory
 python plot.py results --figures figs                   # choose the output directory
+python plot.py results --e2 results_e2 --e3-e5 results_v2 --theory results_theory_nu2   # theory records from another directory
 ```
 
 `plot.py` only reads the results directories: all parts of the record files (`runs.jsonl`,
@@ -84,7 +85,9 @@ python plot.py results --figures figs                   # choose the output dire
 them except the default `figures/` subdirectory. It refuses to write into a directory that already
 holds figures unless `--overwrite` is given, so earlier figures are never replaced by accident.
 The default output is `<e3-e5 dir>/figures`, or `<results>/figures` without `--e3-e5`.
-`--e2 DIR` and `--e3-e5 DIR` default to the results directory.
+`--e2 DIR` and `--e3-e5 DIR` default to the results directory. `--theory DIR` replaces the theory
+records of the results and `--e3-e5` directories (E1, E3, E5) by those of DIR; E2 keeps the theory of
+`--e2`.
 
 The plot-only settings are constants at the top of `plot.py`: bootstrap size and seed, the E5b
 budgets, and the M of the Eq. (6) bound. They don't affect the simulation.
@@ -135,6 +138,21 @@ theory stage recomputes the E1 theory, which is deterministic and identical to `
 costs about 5 CPU-h, mostly the random sketch on its 100 instances, and is needed for the E5
 selection. `tuning`, `e1` and `e2` are not rerun.
 
+## Second moment ν² in Theorem 1 (`e5_nu2_edits.md`)
+
+Eq. (6)–(7) now use ν² = max_{x≠x*} E_s[Δ_x(s)²] instead of the variance (field `nu2` of
+`theory.jsonl`, was `sigma2`). Only the theory records change; the runs are not rerun. The theory
+stage is recomputed in a fresh directory (in `results` and `results_v2` its units are already
+committed and would be skipped):
+
+```bash
+python run.py --stage selftest
+python run.py --stage instances theory --out results_theory_nu2 --workers 48   # ~20 min
+python plot.py results --e3-e5 results_v2 --e2 results_e2 --theory results_theory_nu2 --figures figures_nu2
+```
+
+Only `e5_theory.pdf`, `e5a_problem2.csv` and `e5b_problem2.csv` are expected to differ.
+
 ## Supplementary numerics (`supplementary_numerics_plan.md`)
 
 ```bash
@@ -170,7 +188,7 @@ python supplementary.py results --e2 results_e2 --e3-e5 results_v2 --s1 results_
 | `invocations.jsonl` | per invocation: argv, TrOMA install source (git URL + commit), git commit/dirty of `mcco_paper`, versions, hardware |
 | `instances.jsonl` | one record per instance (rules, ground truth, gap, WH sparsity, maximizers, seeds) |
 | `selection.json` | E3 instance, E5a instances (added by the sweep stage), E2 instances (added by `e2select`) |
-| `theory.jsonl` | per instance × sketch × threshold: max preserved by G, Θ_min, σ², M bounds, Eq. (6)/(7) |
+| `theory.jsonl` | per instance × sketch × threshold: max preserved by G, Θ_min, ν², M bounds, Eq. (6)/(7) |
 | `da_delta.json`, `tuning_runs.jsonl`, `tuning_choice.json` | digital-annealing δ per ensemble, tuning grid runs, chosen setting |
 | `runs.jsonl` | one record per MCCO run (method `mcco`) or annealing run (`da`); `record: problem2` rows hold Problem II only (E1, fixed t = exact Q-th percentile) |
 | `e2_budget_choice.json` | E2 instance and budget n* per family, d_i, pool medians m_k(n) and the instance's s_ik(n) |

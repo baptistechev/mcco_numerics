@@ -4,6 +4,8 @@
                                                                 # results_e2; E3, E5a from results_v2
     python plot.py results_v2                      # everything from one directory
     python plot.py results --figures figs          # other output directory
+    python plot.py results --e2 results_e2 --e3-e5 results_v2 --theory results_theory_nu2
+                                                   # theory records (E1, E3, E5) from results_theory_nu2
 
 Figures (vector PDF): e1_success, e1_distance, e2_threshold, e3_mismatch, e5_theory.
 Tables: e1_success.csv, e2_threshold.csv, e3_mismatch.csv, e4_cost.csv/.tex, e4_cost_by_budget.csv,
@@ -31,6 +33,7 @@ for _var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ.setdefault(_var, "1")
 
 import argparse
+import copy
 import json
 import math
 import multiprocessing
@@ -527,7 +530,7 @@ def fig_e5(res_a: Results, a: pd.DataFrame, res_b: Results, b: pd.DataFrame, pat
                                                                       & ~(b.exponent > 0)).sum())}
         ax.set_xscale("log")
         ax.set_ylim(-0.03, 1.03)
-        ax.set_xlabel("predicted exponent  n Θ²/(2σ² + ⅔MΘ)")
+        ax.set_xlabel("predicted exponent  n Θ²/(2ν² + ⅔M̄Θ)")
         ax.set_title(f"(b) E1 instances, n = {budget_label(n)}")
     axes[1, 0].set_ylabel("P(Problem II succeeds)")
     for ax in axes[1, len(budgets_b):]:
@@ -587,9 +590,10 @@ def write_e4_tex(table: pd.DataFrame, path: Path) -> None:
 # =============================================================================
 
 def make_figures(results_dir: Path, fig_dir: Path, e3_e5_dir: Path | None = None, overwrite: bool = False,
-                 workers: int = 1, e2_dir: Path | None = None) -> None:
+                 workers: int = 1, e2_dir: Path | None = None, theory_dir: Path | None = None) -> None:
     """E1, E4 and E5b from ``results_dir``; E2 from ``e2_dir`` and E3, E5a from ``e3_e5_dir``
-    (both default to ``results_dir``)."""
+    (both default to ``results_dir``). With ``theory_dir``, its theory.jsonl replaces the theory
+    records of ``results_dir`` and ``e3_e5_dir`` (E1, E3, E5); E2 keeps those of ``e2_dir``."""
     results_dir, fig_dir = Path(results_dir), Path(fig_dir)
     existing = [p.name for p in fig_dir.glob("*") if p.stem in FIGURES or p.name == "summary.json"] \
         if fig_dir.exists() else []
@@ -604,6 +608,14 @@ def make_figures(results_dir: Path, fig_dir: Path, e3_e5_dir: Path | None = None
     res_e2 = Results(Path(e2_dir)) if e2_dir else res
     add_sample_best(res, {"e1"}, fig_dir / "sample_best.csv", workers)
     add_sample_best(res_new, {"sweep"}, fig_dir / "sample_best_e3.csv", workers, roles={"e3"})
+    if theory_dir:
+        if res_e2 is res:
+            res_e2 = copy.copy(res)          # E2 keeps its own theory (the E2 threshold grid)
+        th = pd.DataFrame(RecordStore(Path(theory_dir)).load("theory.jsonl"))
+        if th.empty:
+            raise SystemExit(f"no theory records in {theory_dir}")
+        res.theory = th
+        res_new.theory = th
 
     rng = np.random.default_rng(BOOTSTRAP_SEED)
     e1 = e1_table(res, rng)
@@ -633,6 +645,7 @@ def make_figures(results_dir: Path, fig_dir: Path, e3_e5_dir: Path | None = None
         "results_dir": str(results_dir.resolve()),
         "e2_dir": str(res_e2.dir.resolve()),
         "e3_e5_dir": str(res_new.dir.resolve()),
+        "theory_dir": str(Path(theory_dir).resolve()) if theory_dir else None,
         "sources": {"results_dir": ["E1", "E4", "E5b"], "e2_dir": ["E2"], "e3_e5_dir": ["E3", "E5a"]},
         "e2_instances": {f: {"instance": c["instance_key"], "budget": c["budget"]}
                          for f, c in (res_e2.e2_choice or {}).items()},
@@ -657,6 +670,8 @@ def main() -> None:
     parser.add_argument("results", help="results directory (E1, E2, E4, E5b; also E3 and E5a unless --e3-e5)")
     parser.add_argument("--e3-e5", help="results directory holding the E3 and E5a sweeps (new run)")
     parser.add_argument("--e2", help="results directory holding E2 (default: the results directory)")
+    parser.add_argument("--theory", help="directory whose theory.jsonl replaces the theory records for "
+                                         "E1, E3 and E5 (E2 keeps those of --e2)")
     parser.add_argument("--figures", help="output directory (default: <E3/E5 dir or results>/figures)")
     parser.add_argument("--overwrite", action="store_true", help="allow replacing figures in --figures")
     parser.add_argument("--workers", type=int, default=1, help="processes for the post-hoc best sampled string")
@@ -665,7 +680,7 @@ def main() -> None:
     new_dir = Path(args.e3_e5) if args.e3_e5 else None
     fig_dir = Path(args.figures) if args.figures else (new_dir or results_dir) / "figures"
     make_figures(results_dir, fig_dir, new_dir, overwrite=args.overwrite, workers=args.workers,
-                 e2_dir=Path(args.e2) if args.e2 else None)
+                 e2_dir=Path(args.e2) if args.e2 else None, theory_dir=Path(args.theory) if args.theory else None)
 
 
 if __name__ == "__main__":
