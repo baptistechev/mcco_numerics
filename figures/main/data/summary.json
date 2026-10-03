@@ -1,5 +1,5 @@
 {
-  "results_dir": "/app/results",
+  "results_dir": "C:\\Users\\Baptiste\\Documents\\Gdrive\\Projects\\mcco_numerics\\results\\results5",
   "e2_dir": "/app/results_e2",
   "e2_instances": {
     "L": {
@@ -12,9 +12,8 @@
     }
   },
   "estimate": {
-    "E1, E3": "best of sampled strings and MP candidates",
-    "E2": "MP candidates only",
-    "E5": "Problem II"
+    "E1": "best of sampled strings and MP candidates",
+    "E2": "MP candidates only"
   },
   "bootstrap": {
     "samples": 2000,
@@ -44,9 +43,25 @@
   },
   "last_invocation": {
     "only": [
-      "s1"
+      "e4"
     ],
     "from_csv": true
   },
-  "made_from": {}
+  "made_from": {
+    "e4": "results5"
+  },
+  "stage_sources": {
+    "instances": "results5",
+    "theory": "results5",
+    "tuning": "results1",
+    "e1": "results1",
+    "sweep": "results2",
+    "e2select": "results3",
+    "e2": "results3",
+    "s1": "results4"
+  },
+  "intervals": {
+    "E1 distance": "median and quartiles",
+    "E2": "Wilson 95%"
+  }
 }

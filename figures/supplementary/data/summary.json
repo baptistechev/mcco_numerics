@@ -1,5 +1,5 @@
 {
-  "results_dir": "/app/results",
+  "results_dir": "C:\\Users\\Baptiste\\Documents\\Gdrive\\Projects\\mcco_numerics\\results\\results5",
   "e3_e5_dir": "/app/results_v2",
   "theory_dir": "/app/results_theory_nu2",
   "sources": {
@@ -18,12 +18,13 @@
   },
   "estimate": {
     "E1, E3": "best of sampled strings and MP candidates",
-    "E2": "MP candidates only",
-    "E5": "Problem II"
+    "E5": "Problem II",
+    "S1": "best of the 5 candidates (decoder only)"
   },
   "bootstrap": {
     "samples": 2000,
-    "seed": 20260927,
+    "seed_e1": 20260927,
+    "seed_s1": 20260928,
     "levels": "instances, then runs",
     "interval": "95% percentile"
   },
@@ -128,9 +129,19 @@
   },
   "last_invocation": {
     "only": [
-      "s1"
+      "e4"
     ],
     "from_csv": true
   },
-  "made_from": {}
+  "made_from": {},
+  "stage_sources": {
+    "instances": "results5",
+    "theory": "results5",
+    "tuning": "results1",
+    "e1": "results1",
+    "sweep": "results2",
+    "e2select": "results3",
+    "e2": "results3",
+    "s1": "results4"
+  }
 }

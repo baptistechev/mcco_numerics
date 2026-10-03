@@ -71,6 +71,7 @@ E5B_SHOWN = 60                  # E5b instances drawn per sketch (uniformly, fix
 E5B_SHOWN_SEED = 20261003
 E5B_POINT_ALPHA = 0.25          # opacity of the per-instance E5b points
 E5B_XLABEL = r"$n\,\Theta^2 / (2\nu^2 + \frac{2}{3}\bar{M}\Theta)$"   # predicted exponent of Eq. (6)
+E4_BUDGET = 6400                # budget of the E4 cost table (nearest grid budget)
 S1_BOOTSTRAP_SEED = 20260928    # S1 intervals (bootstrap as E1, its own seed)
 
 # --- Style: one shade of blue per method, told apart by marker and line style. Computer Modern
@@ -83,6 +84,7 @@ MARKERS = {"quadruplet": "o", "quintuplet": "s", "random": "^", "annealing": "D"
 LINESTYLES = {"quadruplet": "-", "quintuplet": (0, (4, 1.5)), "random": (0, (1, 1.2)),
               "annealing": (0, (5, 1.5, 1, 1.5))}
 FAMILY_NAMES = {"L": "Local Rules", "W": "Non-local Rules"}   # rule families, as named in the figures
+E4_FAMILY_NAMES = {"L": "Local", "W": "Non-Local"}             # and in the E4 table
 TEXT, TEXT_2, RULE = "#0b0b0b", "#52514e", "#dcdbd7"
 FULL_WIDTH, HALF_WIDTH = 7.2, 3.5      # inches: Scientific Reports double and single column
 # S1 compares decoders, not methods: shades of green. label, color, marker, line style.
@@ -627,7 +629,7 @@ def fig_e5(res: Results, a: pd.DataFrame, b: pd.DataFrame, path: Path) -> dict:
 
 
 # =============================================================================
-# E4: cost table (every method at n = N_MAX, |R| pooled)
+# E4: cost table (every method at n = E4_BUDGET, |R| pooled)
 # =============================================================================
 
 MCCO_STAGES = ["sampling", "sketching", "decoding", "candidates"]
@@ -643,7 +645,8 @@ def e4_tables(res: Results) -> tuple[pd.DataFrame, pd.DataFrame]:
     e1[cols] = e1[cols].astype(float)
     by_budget = (e1.groupby(["family", "n_rules", "m", "n"])[cols].median().reset_index()
                  .rename(columns={"m": "method"}))
-    n = res.params.N_MAX
+    grid = np.array(res.budgets)
+    n = int(grid[np.argmin(np.abs(np.log(grid) - math.log(E4_BUDGET)))])   # nearest grid budget
     at_n = e1[e1.n == n]
     table = at_n.groupby(["m", "family"])[cols].median().reset_index().rename(columns={"m": "method"})
     table["runs"] = at_n.groupby(["m", "family"]).size().to_numpy()
@@ -660,7 +663,7 @@ def write_e4_tex(table: pd.DataFrame, path: Path) -> None:
              r"\hline"]
     for _, r in table.iterrows():
         cells = [("--" if pd.isna(r[c]) else f"{r[c]:.3g}") for c in MCCO_STAGES + ["total"]]
-        lines.append(f"{LABELS[r.method]} & {r.family} & " + " & ".join(cells) + r" \\")
+        lines.append(f"{LABELS[r.method]} & {E4_FAMILY_NAMES.get(r.family, r.family)} & " + " & ".join(cells) + r" \\")
     lines += [r"\hline", r"\end{tabular}"]
     path.write_text("\n".join(lines) + "\n")
 
