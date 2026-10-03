@@ -4,7 +4,7 @@ Numerical experiments for the revision of *A Compressive Sensing Inspired Monte-
 Combinatorial Optimization* (MCCO). The simulation writes every result as records in
 `results/`; the figures in `figures/` are made from those records only.
 
-The experiments ([`instructions/simulation_plan.md`](instructions/simulation_plan.md)):
+The experiments:
 
 | Experiment | Question | Figure |
 |---|---|---|
@@ -181,7 +181,6 @@ mcco_sim/          the simulation package
 tests/             pytest: checks, params, every stage on tiny params, figures
 results/           results1/, results2/, ...: the records of each run
 figures/           main/ and supplementary/, each with data/ (CSV) and plot/ (PDF)
-instructions/      plans and edit notes behind the code (simulation plan, revision edits)
 Dockerfile, pyproject.toml
 ```
 
@@ -234,5 +233,5 @@ directory are named `*.inherited.NNN.jsonl`.
 | `results5` | `instances theory` (2026-10-03) | Theorem 1 with ν² instead of σ² |
 
 Each directory also holds everything it did not rerun, so `results5` is the complete, latest state.
-The notes in `instructions/` use the former names: `results` = results1, `results_v2` = results2,
+Older notes and logs use the former names: `results` = results1, `results_v2` = results2,
 `results_e2` = results3, `results_s1` = results4, `results_theory_nu2` = results5.
