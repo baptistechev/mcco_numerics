@@ -24,10 +24,13 @@ def stage_instances(out: Output, workers: int) -> None:
     execute(out, "instances", units, workers)
 
     # E3: draw 0, whatever its number of maximizers.
-    if not out.path("selection.json").exists():
+    # (selection.json may already hold the keys inherited from the previous results directory)
+    selection = out.read_json("selection.json") if out.path("selection.json").exists() else {}
+    if "e3" not in selection:
         e3 = e3_descriptor(params, 0)
         execute(out, "instances", [{"key": f"instances/{e3['key']}", "payload": {"descriptor": e3}}], 1)
-        out.write_json("selection.json", {"e3": {"descriptor": e3}})
+        selection["e3"] = {"descriptor": e3}
+        out.write_json("selection.json", selection)
 
 
 def stage_theory(out: Output, workers: int) -> None:

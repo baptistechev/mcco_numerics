@@ -209,13 +209,32 @@ def _old_format_copy(completed, target):
 def test_figures_from_records(completed, tmp_path):
     import plot
 
-    plot.make_figures(completed.dir, tmp_path / "figs")
-    for name in plot.FIGURES:
-        assert (tmp_path / "figs" / f"{name}.pdf").stat().st_size > 0
-    for name in ("e1_success.csv", "e3_mismatch.csv", "e4_cost.csv", "e4_cost.tex", "summary.json"):
-        assert (tmp_path / "figs" / name).exists()
-    with pytest.raises(SystemExit):                              # never replaces figures silently
-        plot.make_figures(completed.dir, tmp_path / "figs")
+    figs = tmp_path / "figs"
+    plot.make_figures(completed.dir, figs)
+    for name in [p for files in plot.OUTPUTS.values() for p in files] + ["main/data/summary.json",
+                                                                          "supplementary/data/summary.json"]:
+        assert (figs / name).stat().st_size > 0
+    assert {p.relative_to(figs).parent.as_posix() for p in figs.rglob("*.*")} == {
+        "main/data", "main/plot", "supplementary/data", "supplementary/plot"}
+    summary = json.loads((figs / "supplementary/data/summary.json").read_text())
+    assert summary["made_from"] == {e: completed.dir.name for e in ("e1", "e3", "e5", "s1")}
+
+
+def test_figures_only_and_from_csv(completed, tmp_path):
+    import plot
+
+    figs = tmp_path / "figs"
+    plot.make_figures(completed.dir, figs, only=["e2", "e5"])
+    made = {p.relative_to(figs).as_posix() for p in figs.rglob("*.*")}
+    assert made == {*plot.OUTPUTS["e2"], *plot.OUTPUTS["e5"], "main/data/summary.json", "supplementary/data/summary.json"}
+    tables = {name: (figs / plot.PATH[name]).read_text() for name in ("e2_threshold.csv", "e5b_problem2.csv")}
+    (figs / plot.PATH["e5_theory.pdf"]).unlink()
+    plot.make_figures(completed.dir, figs, only=["e2", "e5"], from_csv=True)
+    assert (figs / plot.PATH["e5_theory.pdf"]).stat().st_size > 0
+    assert {name: (figs / plot.PATH[name]).read_text() for name in tables} == tables   # tables only read
+    assert "e5" in json.loads((figs / "supplementary/data/summary.json").read_text())
+    with pytest.raises(SystemExit):                              # no E1 table to draw from
+        plot.make_figures(completed.dir, figs, only=["e1"], from_csv=True)
 
 
 def test_old_records_give_same_figures(completed, tmp_path):
@@ -226,16 +245,33 @@ def test_old_records_give_same_figures(completed, tmp_path):
 
     old = _old_format_copy(completed, tmp_path / "old")
     plot.make_figures(completed.dir, tmp_path / "new_figs")
-    plot.make_figures(old, tmp_path / "old_figs", e3_e5_dir=completed.dir, workers=2)
-    for name in ("e1_success.csv", "e2_threshold.csv"):
-        new, recomputed = pd.read_csv(tmp_path / "new_figs" / name), pd.read_csv(tmp_path / "old_figs" / name)
+    plot.make_figures(old, tmp_path / "old_figs", workers=2)     # E1 and E3 post hoc
+    for name in ("e1_success.csv", "e1_distance.csv", "e2_threshold.csv", "e3_mismatch.csv"):
+        new = pd.read_csv(tmp_path / "new_figs" / plot.PATH[name])
+        recomputed = pd.read_csv(tmp_path / "old_figs" / plot.PATH[name])
         pd.testing.assert_frame_equal(new, recomputed)
-    plot.make_figures(old, tmp_path / "old_only", workers=1)      # E3 from old records, post hoc too
-    plot.make_figures(old, tmp_path / "split", e2_dir=completed.dir, e3_e5_dir=completed.dir)
-    pd.testing.assert_frame_equal(pd.read_csv(tmp_path / "new_figs" / "e2_threshold.csv"),
-                                  pd.read_csv(tmp_path / "split" / "e2_threshold.csv"))
-    pd.testing.assert_frame_equal(pd.read_csv(tmp_path / "new_figs" / "e3_mismatch.csv"),
-                                  pd.read_csv(tmp_path / "old_only" / "e3_mismatch.csv"))
+
+
+def test_inherit_from_previous_directory(tiny, completed, tmp_path):
+    """A new directory runs one stage and copies every other stage: same records as the source, and
+    the figures from it alone."""
+    import plot
+    from mcco_sim.inherit import inherit, inherited_stages
+
+    out = Output(tmp_path / "results2", tiny)
+    sources = inherit(out.dir, completed.dir, ["theory"])
+    assert sources["stages"]["theory"] == "results2" and sources["stages"]["e1"] == completed.dir.name
+    assert inherited_stages(out) == set(STAGES) - {"theory"}
+    STAGES["theory"](out, workers=1)
+    inherit(out.dir, completed.dir, ["theory"])                  # idempotent
+    assert out.done_units() == completed.done_units()
+    assert _count(out, "runs.jsonl") == _count(completed, "runs.jsonl")
+    label = lambda r: (r["instance_key"], r["sketch"], r["t_label"])  # noqa: E731
+    assert sorted(map(label, out.load("theory.jsonl"))) == sorted(map(label, completed.load("theory.jsonl")))
+    assert out.read_json("selection.json") == completed.read_json("selection.json")
+    assert out.read_json("e2_budget_choice.json") == completed.read_json("e2_budget_choice.json")
+    assert not out.path("runs.jsonl").exists()                   # copies only: runs.inherited.NNN.jsonl
+    plot.make_figures(out.dir, tmp_path / "figs", only=["e2", "e5"])
 
 
 def test_s1_basis_pursuit(tiny, completed):
@@ -253,17 +289,3 @@ def test_s1_basis_pursuit(tiny, completed):
         assert len(r["candidates"]) <= tiny.MP_ITERATIONS
         if "bp_residual" in r:
             assert r["bp_residual_over_eta"] < 1.05
-
-
-def test_supplementary_figures(completed, tmp_path):
-    import supplementary
-
-    supplementary.make_supplementary(completed.dir, tmp_path / "supp", e2_dir=completed.dir,
-                                     e3_e5_dir=completed.dir, s1_dir=completed.dir)
-    for name in supplementary.FIGURES_SUPP:
-        assert (tmp_path / "supp" / f"{name}.pdf").stat().st_size > 0
-    for name in ("s2_instances.csv", "s2_runs.csv", "s2c_condition.csv", "s2c_condition.tex", "s1_success.csv",
-                 "s1_bp_diagnostics.csv", "s3_per_instance_success.csv", "summary_supplementary.json"):
-        assert (tmp_path / "supp" / name).exists()
-    with pytest.raises(SystemExit):
-        supplementary.make_supplementary(completed.dir, tmp_path / "supp")

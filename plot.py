@@ -1,25 +1,31 @@
-"""Figures and tables of the MCCO revision, from the records of results directories only.
+"""Figures and tables of the MCCO revision, from the records of one results directory.
 
-    python plot.py results --e2 results_e2 --e3-e5 results_v2   # E1, E4, E5b from results; E2 from
-                                                                # results_e2; E3, E5a from results_v2
-    python plot.py results_v2                      # everything from one directory
-    python plot.py results --figures figs          # other output directory
-    python plot.py results --e2 results_e2 --e3-e5 results_v2 --theory results_theory_nu2
-                                                   # theory records (E1, E3, E5) from results_theory_nu2
+    python plot.py                                 # every figure, from the latest results/resultsN
+    python plot.py results/results3 --only e2      # E2 only, from an earlier results directory
+    python plot.py --only e2 e5 --from-csv         # redraw E2 and E5 from the tables in figures/
 
-Figures (vector PDF): e1_success, e1_distance, e2_threshold, e3_mismatch, e5_theory.
-Tables: e1_success.csv, e2_threshold.csv, e3_mismatch.csv, e4_cost.csv/.tex, e4_cost_by_budget.csv,
-e5a_problem2.csv, e5b_problem2.csv, and summary.json (settings and seeds of the aggregates).
+Every results directory holds the records of every stage (mcco_sim/inherit.py), so one directory is
+enough; its sources.json says which run each stage comes from.
 
-Result directories are only read. Figures go to --figures (default: FIGURES under the E3/E5
-directory if given, else under the results directory); an output directory that already holds
-figures is refused unless --overwrite, so earlier figures are never replaced by accident.
+--only E... makes only those experiments (e1 e2 e3 e4 e5 s1). --from-csv draws from the tables
+already in the figures directory (written by an earlier run) instead of recomputing them from the
+records; the run records are then never loaded, so it takes seconds. Use it after a change of the
+drawing code only: a change of the data or of a table computation needs a run without --from-csv.
+
+Outputs (OUTPUTS below), tables in data/ and figures in plot/:
+    main/           e1_distance, e2_threshold, e4_cost (.csv and LaTeX table)
+    supplementary/  e1_success, e3_mismatch, e5_theory (e5a/e5b tables), s1_decoders (basis vs
+                    matching pursuit, if the results directory holds the S1 records)
+Each data/ also holds summary.json (sources, settings and seeds of the aggregates).
+
+Result directories are only read. Figures go to --figures (default: figures/), replacing the
+previous version of the figures made; summary.json records the results directory each one is from.
 
 MCCO estimate (figure_edits.md, edit 2): best of the sampled strings and the matching-pursuit
 candidates. Records written before that change hold the MP-only outcome; for them the best sampled
-string is recomputed from the recorded seeds (mcco_sim/posthoc.py, cached in sample_best.csv).
+string is recomputed from the recorded seeds (mcco_sim/posthoc.py, cached in main/data/sample_best.csv).
 E1 and E3 use this combined outcome; E2 uses the MP-only outcome (effect of the threshold on the
-decoding); E5 uses Problem II.
+decoding); E5 uses Problem II; S1 compares the decoders alone (best of the 5 candidates).
 
 The plotting settings below only affect the figures, not the simulation.
 """
@@ -33,10 +39,10 @@ for _var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ.setdefault(_var, "1")
 
 import argparse
-import copy
 import json
 import math
 import multiprocessing
+from functools import cached_property
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -52,13 +58,18 @@ from scipy.stats import spearmanr  # noqa: E402
 from mcco_sim.aggregates import percentile_interval, two_level_bootstrap, wilson_interval  # noqa: E402
 from mcco_sim.params import doubling_grid  # noqa: E402
 from mcco_sim.posthoc import sample_best_task  # noqa: E402
-from mcco_sim.records import RecordStore  # noqa: E402
+from mcco_sim.records import RecordStore, latest_results  # noqa: E402
 
 # --- Plotting settings --------------------------------------------------------------------------
 BOOTSTRAP_SAMPLES = 2000        # two-level bootstrap replicates (95% intervals)
 BOOTSTRAP_SEED = 20260927
 E5B_BUDGETS = (800, 6400, 51200)  # budgets of the E5b panels (nearest grid budgets if absent)
 E5_M_BOUND = "valid"            # M used for the Eq. (6) bound: "valid" or "plan_2m_sup"
+E5A_YMAX = 10.0                 # top of the E5a failure axis (the bound is cut above it)
+E5B_SHOWN = 60                  # E5b instances drawn per sketch (uniformly, fixed seed); bins and fits use all
+E5B_SHOWN_SEED = 20261003
+E5B_POINT_ALPHA = 0.25          # opacity of the per-instance E5b points
+S1_BOOTSTRAP_SEED = 20260928    # S1 intervals (bootstrap as E1, its own seed)
 
 # --- Style: fixed color per entity (validated categorical slots 1-3; annealing is the neutral
 # baseline), plus a marker per method so identity never relies on color alone. ---------------------
@@ -69,8 +80,26 @@ COLORS = {"quadruplet": "#2a78d6", "quintuplet": "#eb6834", "random": "#1baf7a",
 MARKERS = {"quadruplet": "o", "quintuplet": "s", "random": "^", "annealing": "D"}
 TEXT, TEXT_2, RULE = "#0b0b0b", "#52514e", "#dcdbd7"
 FULL_WIDTH, HALF_WIDTH = 7.2, 3.5      # inches: Scientific Reports double and single column
+DECODERS = {"mp": ("Matching pursuit", "#2a78d6", "o"), "bp": ("Basis pursuit", "#eb6834", "s")}  # S1
 
-FIGURES = ["e1_success", "e1_distance", "e2_threshold", "e3_mismatch", "e5_theory"]
+# Files written per experiment (--only), relative to the figures directory: main/ and supplementary/,
+# each with data/ (tables, read back by --from-csv) and plot/ (PDF figures, LaTeX table).
+OUTPUTS = {"e1": ["main/data/e1_distance.csv", "main/plot/e1_distance.pdf",
+                  "supplementary/data/e1_success.csv", "supplementary/plot/e1_success.pdf"],
+           "e2": ["main/data/e2_threshold.csv", "main/plot/e2_threshold.pdf"],
+           "e3": ["supplementary/data/e3_mismatch.csv", "supplementary/plot/e3_mismatch.pdf"],
+           "e4": ["main/data/e4_cost.csv", "main/data/e4_cost_by_budget.csv", "main/plot/e4_cost.tex"],
+           "e5": ["supplementary/data/e5a_problem2.csv", "supplementary/data/e5b_problem2.csv",
+                  "supplementary/plot/e5_theory.pdf"],
+           "s1": ["supplementary/data/s1_success.csv", "supplementary/data/s1_bp_diagnostics.csv",
+                  "supplementary/plot/s1_decoders.pdf"]}
+PATH = {Path(p).name: p for files in OUTPUTS.values() for p in files}
+SECTIONS = ["main", "supplementary"]
+# The E1 table, split between the distance figure (main) and the success figure (supplementary).
+E1_KEYS = ["family", "n_rules", "method", "n", "instances", "runs_per_instance"]
+E1_COLUMNS = {"success": E1_KEYS + ["success", "success_ci_low", "success_ci_high", "success_mp"],
+              "distance": E1_KEYS + ["distance_median", "distance_q25", "distance_q75",
+                                     "rank_median", "rank_q25", "rank_q75", "distance_mp_median"]}
 RUN_FIELDS = ["record", "method", "experiment", "role", "family", "n_rules", "instance_id", "instance_key",
               "sample_id", "run_id", "sketch", "threshold_mode", "threshold_label", "t", "n", "n_kept", "queries",
               "success", "functional_distance", "percentile_rank", "f_x_hat",
@@ -150,19 +179,29 @@ def normalize_runs(runs: pd.DataFrame) -> pd.DataFrame:
 
 
 class Results:
-    """One results directory, read through RecordStore (nothing is ever written there)."""
+    """One results directory, read through RecordStore (nothing is ever written there). The record
+    files are loaded on first use, so drawing from saved tables (--from-csv) never reads the runs."""
 
     def __init__(self, results_dir: Path) -> None:
         self.dir = results_dir
         self.store = RecordStore(results_dir)
         self.params = stored_params(results_dir)
         self.budgets = self.params.budgets
-        self.runs = normalize_runs(pd.DataFrame(self.store.load("runs.jsonl", fields=RUN_FIELDS)))
-        self.theory = pd.DataFrame(self.store.load("theory.jsonl"))
-        self.instances = pd.DataFrame(self.store.load("instances.jsonl"))
         self.selection = self.store.read_json("selection.json")
         path = results_dir / "e2_budget_choice.json"
         self.e2_choice = json.loads(path.read_text()) if path.exists() else None
+
+    @cached_property
+    def runs(self) -> pd.DataFrame:
+        return normalize_runs(pd.DataFrame(self.store.load("runs.jsonl", fields=RUN_FIELDS)))
+
+    @cached_property
+    def theory(self) -> pd.DataFrame:
+        return pd.DataFrame(self.store.load("theory.jsonl"))
+
+    @cached_property
+    def instances(self) -> pd.DataFrame:
+        return pd.DataFrame(self.store.load("instances.jsonl"))
 
     def instance(self, key: str) -> pd.Series:
         return self.instances[self.instances.instance_key == key].iloc[0]
@@ -348,25 +387,23 @@ def e2_table(res: Results) -> pd.DataFrame:
 def fig_e2(res: Results, table: pd.DataFrame, path: Path) -> None:
     items = list(res.selection["e2"].items())
     methods = methods_present(table.sketch)
-    fig, axes = plt.subplots(2, len(items), figsize=(FULL_WIDTH * 0.62, 3.4), sharex=True, squeeze=False)
+    # Success only; the distance to the optimum stays in e2_threshold.csv.
+    fig, axes = plt.subplots(1, len(items), figsize=(FULL_WIDTH * 0.62, 1.9), sharey=True, squeeze=False)
     q = res.params.Q
     for col, (family, sel) in enumerate(items):
         key = sel["descriptor"]["key"]
-        top, bottom = axes[0, col], axes[1, col]
+        ax = axes[0, col]
         for m in methods:
             d = table[(table.instance_key == key) & (table.sketch == m) & table.percentile.notna()]
             d = d.sort_values("percentile")
-            band(top, d.percentile, d.rate, d.ci_low, d.ci_high, m)
-            band(bottom, d.percentile, d.distance_median, d.distance_q25, d.distance_q75, m)
-        for ax in (top, bottom):
-            ax.axvline(q, color=TEXT_2, linewidth=0.6, linestyle=(0, (3, 2)))
-        top.set_ylim(-0.02, 1.05)
+            band(ax, d.percentile, d.rate, d.ci_low, d.ci_high, m)
+        ax.axvline(q, color=TEXT_2, linewidth=0.6, linestyle=(0, (3, 2)))
+        ax.set_ylim(-0.02, 1.05)
+        ax.set_xlim(-2, 102)
         n = res.e2_choice[family]["budget"]
-        top.set_title(f"Family {family}: {key.split('/', 1)[1]}, n = {budget_label(n)}")
-        bottom.set_xlim(-2, 102)
+        ax.set_title(f"Family {family}: {key.split('/', 1)[1]}, n = {budget_label(n)}")
     axes[0, 0].set_ylabel("success probability")
-    axes[1, 0].set_ylabel("distance to optimum (σ_f)")
-    fig.supxlabel(f"threshold percentile (% of the 2$^{{{res.params.N}}}$ strings)", fontsize=7, y=0.02)
+    fig.supxlabel(f"threshold percentile (% of the 2$^{{{res.params.N}}}$ strings)", fontsize=7, y=-0.06)
     handles = [plt.Line2D([], [], color=COLORS[m], marker=MARKERS[m], label=LABELS[m]) for m in methods]
     handles.append(plt.Line2D([], [], color=TEXT_2, linewidth=0.6, linestyle=(0, (3, 2)), label=f"Q = {q:g}"))
     fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=len(handles))
@@ -463,21 +500,20 @@ def e5b_table(res: Results) -> pd.DataFrame:
     return table
 
 
-def fig_e5(res_a: Results, a: pd.DataFrame, res_b: Results, b: pd.DataFrame, path: Path) -> dict:
-    """(a) Problem II failure vs n on the E5a instances (from res_a); (b) Problem II success vs the
-    predicted exponent on the E1 instances (from res_b)."""
-    J = res_a.params.J_SINGLE
+def fig_e5(res: Results, a: pd.DataFrame, b: pd.DataFrame, path: Path) -> dict:
+    """(a) Problem II failure vs n on the E5a instances; (b) Problem II success vs the predicted
+    exponent on the E1 instances."""
+    J = res.params.J_SINGLE
     floor = 1 / (2 * J)
-    roles = [(f"e5_{fam}", s["descriptor"]["key"]) for fam, s in res_a.selection.get("e5", {}).items() if s]
+    roles = [(f"e5_{fam}", s["descriptor"]["key"]) for fam, s in res.selection.get("e5", {}).items() if s]
     roles = [(role, key) for role, key in roles if not a.empty and (a.role == role).any()]
-    budgets_a = res_a.params.e5_budgets or res_a.budgets
-    budgets_b = e5b_budgets(res_b)
+    budgets_a = res.params.e5_budgets or res.budgets
+    budgets_b = e5b_budgets(res)
     ncol = max(len(roles), len(budgets_b), 1)
     fig, axes = plt.subplots(2, ncol, figsize=(FULL_WIDTH, 4.1), squeeze=False)
     plotted = (set(a.sketch) if not a.empty else set()) | set(b[b.exponent > 0].sketch)
     methods = methods_present(plotted)
     notes = {}
-    ymax = max(2.0, np.nanmax(a.bound_eq6.to_numpy(float)) * 2) if not a.empty and a.bound_eq6.notna().any() else 2.0
     for ax, (role, key) in zip(axes[0], roles):
         for m in methods:
             d = a[(a.role == role) & (a.sketch == m)].sort_values("n")
@@ -496,7 +532,7 @@ def fig_e5(res_a: Results, a: pd.DataFrame, res_b: Results, b: pd.DataFrame, pat
         ax.axhline(1.0, color=TEXT_2, linewidth=0.5)
         budget_axis(ax, budgets_a)
         ax.set_yscale("log")
-        ax.set_ylim(floor / 2, ymax)
+        ax.set_ylim(floor / 2, E5A_YMAX)
         ax.set_title(f"(a) {key}")
         ax.set_xlabel("queries n")
     if roles:
@@ -506,28 +542,43 @@ def fig_e5(res_a: Results, a: pd.DataFrame, res_b: Results, b: pd.DataFrame, pat
     for ax in axes[0, len(roles):]:
         ax.set_visible(False)
 
+    # Instances whose points are drawn: a uniform sample per sketch, the same in every panel.
+    rng = np.random.default_rng(E5B_SHOWN_SEED)
+    shown = {}
+    for m in methods:
+        keys = np.sort(b[(b.sketch == m) & (b.exponent > 0)].instance_key.unique())
+        shown[m] = set(rng.choice(keys, min(E5B_SHOWN, len(keys)), replace=False)) if len(keys) else set()
     for ax, n in zip(axes[1], budgets_b):
         d_n = b[(b.n == n) & (b.exponent > 0)]
         for m in methods:
             d = d_n[d_n.sketch == m]
             if d.empty:
                 continue
-            ax.plot(d.exponent, d.problem2_success, linestyle="none", color=COLORS[m], marker=MARKERS[m],
-                    markersize=2.4, alpha=0.45, markeredgewidth=0)
+            s = d[d.instance_key.isin(shown[m])]
+            ax.plot(s.exponent, s.problem2_success, linestyle="none", color=COLORS[m], marker=MARKERS[m],
+                    markersize=2.4, alpha=E5B_POINT_ALPHA, markeredgewidth=0)
             x, y = d.exponent.to_numpy(float), d.problem2_success.to_numpy(float)
-            # Mean success in log-spaced bins of the exponent (bins with at least 5 instances).
+            # Mean success in log-spaced bins of the exponent (bins with at least 5 instances, all
+            # instances), and a least-squares line through these means in log10(exponent).
             edges = np.logspace(np.log10(x.min()), np.log10(x.max()), 8)
             which = np.clip(np.digitize(x, edges) - 1, 0, len(edges) - 2)
             binned = [(np.median(x[which == i]), y[which == i].mean()) for i in range(len(edges) - 1)
                       if (which == i).sum() >= 5]
+            fit = None
             if binned:
-                bx, by = zip(*binned)
-                ax.plot(bx, by, color=COLORS[m], marker=MARKERS[m], markersize=3.6, markeredgecolor="white",
-                        markeredgewidth=0.6)
+                bx, by = map(np.array, zip(*binned))
+                ax.plot(bx, by, linestyle="none", color=COLORS[m], marker=MARKERS[m], markersize=3.6,
+                        markeredgecolor="white", markeredgewidth=0.6)
+                if len(bx) >= 2:
+                    slope, intercept = np.polyfit(np.log10(bx), by, 1)
+                    xs = np.logspace(np.log10(bx.min()), np.log10(bx.max()), 50)
+                    ax.plot(xs, intercept + slope * np.log10(xs), color=COLORS[m], linewidth=1.0)
+                    fit = {"slope_per_decade": float(slope), "intercept": float(intercept), "bins": int(len(bx))}
             rho = spearmanr(x, y).statistic if len(x) > 2 else math.nan
             notes[f"n={n}/{m}"] = {"instances_with_exponent": int(len(x)), "spearman_rho": float(rho),
                                    "instances_without_exponent": int(((b.n == n) & (b.sketch == m)
-                                                                      & ~(b.exponent > 0)).sum())}
+                                                                      & ~(b.exponent > 0)).sum()),
+                                   "instances_shown": int(len(s)), "binned_mean_fit": fit}
         ax.set_xscale("log")
         ax.set_ylim(-0.03, 1.03)
         ax.set_xlabel("predicted exponent  n Θ²/(2ν² + ⅔M̄Θ)")
@@ -538,8 +589,11 @@ def fig_e5(res_a: Results, a: pd.DataFrame, res_b: Results, b: pd.DataFrame, pat
     handles = [plt.Line2D([], [], color=COLORS[m], marker=MARKERS[m], label=LABELS[m]) for m in methods]
     handles += [plt.Line2D([], [], color=TEXT_2, linewidth=0.8, linestyle=(0, (4, 2)), label="bound, Eq. (6)"),
                 plt.Line2D([], [], color=TEXT_2, marker="o", linestyle="none", markerfacecolor="white",
-                           label=f"no failure in {J} runs")]
-    fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=len(handles))
+                           label=f"no failure in {J} runs"),
+                plt.Line2D([], [], color=TEXT_2, marker="o", linestyle="none", markersize=3.6,
+                           markeredgecolor="white", markeredgewidth=0.6, label="binned mean"),
+                plt.Line2D([], [], color=TEXT_2, linewidth=1.0, label="linear fit in log exponent")]
+    fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=min(len(handles), 4))
     fig.tight_layout(h_pad=1.2)
     fig.savefig(path)
     plt.close(fig)
@@ -586,101 +640,217 @@ def write_e4_tex(table: pd.DataFrame, path: Path) -> None:
 
 
 # =============================================================================
+# S1: basis pursuit vs matching pursuit
+# =============================================================================
+
+S1_FIELDS = ["experiment", "record", "instance_key", "family", "n_rules", "sample_id", "sketch", "n", "success_mp",
+             "eta", "bp_residual_over_eta", "bp_positive", "bp_l1", "time", "unit"]
+
+
+def s1_tables(res: Results, bp: pd.DataFrame, rng: np.random.Generator) -> tuple[pd.DataFrame, pd.DataFrame]:
+    bp = bp.copy()
+    bp["decode_seconds"] = [t.get("decoding") if isinstance(t, dict) else None for t in bp.time]
+    e1 = res.runs[(res.runs.experiment == "e1") & (res.runs.record == "run") & (res.runs.method == "mcco")].copy()
+    e1["decode_seconds"] = [t.get("decoding") if isinstance(t, dict) else None for t in e1.time]
+    keys = ["instance_key", "sample_id", "n", "sketch"]
+    mp = e1[keys + ["family", "success_mp", "decode_seconds"]].rename(columns={"success_mp": "success"})
+    paired = bp[keys + ["success_mp", "decode_seconds"]].rename(columns={"success_mp": "success"}).merge(
+        mp, on=keys, suffixes=("_bp", "_mp"))
+    rows = []
+    for (family, sketch), g in paired.groupby(["family", "sketch"]):
+        budgets = sorted(g.n.unique())
+        for decoder in ("mp", "bp"):
+            cube, instances = outcome_cube(g.assign(rep=g.sample_id, success=g[f"success_{decoder}"].astype(float)),
+                                           "success", budgets)
+            reps = two_level_bootstrap(cube, BOOTSTRAP_SAMPLES, rng)
+            low, high = percentile_interval(reps)
+            for k, n in enumerate(budgets):
+                at = g[g.n == n]
+                rows.append({"family": family, "sketch": sketch, "decoder": decoder, "n": n,
+                             "instances": len(instances), "success": cube[:, :, k].mean(),
+                             "ci_low": low[k], "ci_high": high[k],
+                             "decode_seconds_median": float(pd.to_numeric(at[f"decode_seconds_{decoder}"]).median())})
+    diagnostics = bp.groupby(["sketch", "n"]).agg(
+        eta_median=("eta", "median"), residual_over_eta_median=("bp_residual_over_eta", "median"),
+        positive_entries_median=("bp_positive", "median"), decodes=("eta", "size")).reset_index()
+    return pd.DataFrame(rows), diagnostics
+
+
+def fig_s1(table: pd.DataFrame, families: list[str], path: Path) -> None:
+    sketches = [m for m in METHODS if m in set(table.sketch)]
+    fig, axes = plt.subplots(len(families), len(sketches), figsize=(FULL_WIDTH * 0.8, 1.6 * len(families) + 0.3),
+                             sharex=True, sharey=True, squeeze=False)
+    for i, family in enumerate(families):
+        for j, m in enumerate(sketches):
+            ax = axes[i, j]
+            for decoder, (label, color, marker) in DECODERS.items():
+                d = table[(table.family == family) & (table.sketch == m) & (table.decoder == decoder)].sort_values("n")
+                if d.empty:
+                    continue
+                ax.fill_between(d.n, d.ci_low, d.ci_high, color=color, alpha=0.15, linewidth=0)
+                ax.plot(d.n, d.success, color=color, marker=marker, markeredgewidth=0)
+                budget_axis(ax, sorted(d.n.unique()))
+            ax.set_ylim(-0.02, 1.02)
+            if i == 0:
+                instances = table[(table.sketch == m)].instances.max()
+                ax.set_title(f"{LABELS[m]} ({instances} inst. per family)")
+            if j == 0:
+                ax.set_ylabel(f"Family {family}\nsuccess rate")
+            if i == len(families) - 1:
+                ax.set_xlabel("queries n")
+    handles = [plt.Line2D([], [], color=c, marker=mk, label=f"{label} (5 candidates)")
+               for label, c, mk in DECODERS.values()]
+    fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=2)
+    fig.savefig(path)
+    plt.close(fig)
+
+
+# =============================================================================
 # Main
 # =============================================================================
 
-def make_figures(results_dir: Path, fig_dir: Path, e3_e5_dir: Path | None = None, overwrite: bool = False,
-                 workers: int = 1, e2_dir: Path | None = None, theory_dir: Path | None = None) -> None:
-    """E1, E4 and E5b from ``results_dir``; E2 from ``e2_dir`` and E3, E5a from ``e3_e5_dir``
-    (both default to ``results_dir``). With ``theory_dir``, its theory.jsonl replaces the theory
-    records of ``results_dir`` and ``e3_e5_dir`` (E1, E3, E5); E2 keeps those of ``e2_dir``."""
+def make_figures(results_dir: Path, fig_dir: Path, workers: int = 1,
+                 only: list[str] | None = None, from_csv: bool = False) -> None:
+    """Figures and tables of one (complete) results directory, in ``fig_dir``/main and
+    ``fig_dir``/supplementary (OUTPUTS). ``only``: experiments to make (keys of OUTPUTS, default
+    all). ``from_csv``: draw from the tables already in ``fig_dir`` instead of recomputing them from
+    the records (only the figures, the E4 .tex and the E5 notes of the summaries are rewritten)."""
     results_dir, fig_dir = Path(results_dir), Path(fig_dir)
-    existing = [p.name for p in fig_dir.glob("*") if p.stem in FIGURES or p.name == "summary.json"] \
-        if fig_dir.exists() else []
-    if existing and not overwrite:
-        raise SystemExit(f"{fig_dir} already holds figures ({', '.join(sorted(existing))}); "
-                         "choose another --figures directory or pass --overwrite.")
-    fig_dir.mkdir(parents=True, exist_ok=True)
+    only = [e for e in OUTPUTS if e in only] if only else list(OUTPUTS)
+    full = not from_csv and only == list(OUTPUTS)        # a full run rewrites the summaries from scratch
+    if from_csv:
+        missing = [name for e in only for name in OUTPUTS[e]
+                   if name.endswith(".csv") and not name.endswith("s1_bp_diagnostics.csv") and not (fig_dir / name).exists()]
+        if missing:
+            raise SystemExit(f"--from-csv: {', '.join(missing)} not in {fig_dir}; make them once without --from-csv.")
+    for section in SECTIONS:
+        for kind in ("data", "plot"):
+            (fig_dir / section / kind).mkdir(parents=True, exist_ok=True)
     set_style()
 
+    def path(name: str) -> Path:
+        return fig_dir / PATH[name]
+
+    def table(name: str, compute) -> pd.DataFrame:
+        """The table ``name``: read back from fig_dir (--from-csv), or computed and saved there."""
+        if from_csv:
+            return pd.read_csv(path(name))
+        t = compute()
+        t.to_csv(path(name), index=False)
+        return t
+
     res = Results(results_dir)
-    res_new = Results(Path(e3_e5_dir)) if e3_e5_dir else res
-    res_e2 = Results(Path(e2_dir)) if e2_dir else res
-    add_sample_best(res, {"e1"}, fig_dir / "sample_best.csv", workers)
-    add_sample_best(res_new, {"sweep"}, fig_dir / "sample_best_e3.csv", workers, roles={"e3"})
-    if theory_dir:
-        if res_e2 is res:
-            res_e2 = copy.copy(res)          # E2 keeps its own theory (the E2 threshold grid)
-        th = pd.DataFrame(RecordStore(Path(theory_dir)).load("theory.jsonl"))
-        if th.empty:
-            raise SystemExit(f"no theory records in {theory_dir}")
-        res.theory = th
-        res_new.theory = th
+    if not from_csv:
+        if "e1" in only:
+            add_sample_best(res, {"e1"}, fig_dir / "main" / "data" / "sample_best.csv", workers)
+        if "e3" in only:
+            add_sample_best(res, {"sweep"}, fig_dir / "supplementary" / "data" / "sample_best_e3.csv", workers,
+                            roles={"e3"})
 
-    rng = np.random.default_rng(BOOTSTRAP_SEED)
-    e1 = e1_table(res, rng)
-    e1.to_csv(fig_dir / "e1_success.csv", index=False)
-    fig_e1_grid(res, e1, "success", fig_dir / "e1_success.pdf")
-    fig_e1_grid(res, e1, "distance", fig_dir / "e1_distance.pdf")
+    if "e1" in only:
+        e1 = None if from_csv else e1_table(res, np.random.default_rng(BOOTSTRAP_SEED))
+        for value in ("success", "distance"):
+            t = table(f"e1_{value}.csv", lambda: e1[[c for c in E1_COLUMNS[value] if c in e1]])
+            fig_e1_grid(res, t, value, path(f"e1_{value}.pdf"))
 
-    e2 = e2_table(res_e2)
-    e2.to_csv(fig_dir / "e2_threshold.csv", index=False)
-    fig_e2(res_e2, e2, fig_dir / "e2_threshold.pdf")
+    if "e2" in only:
+        fig_e2(res, table("e2_threshold.csv", lambda: e2_table(res)), path("e2_threshold.pdf"))
 
-    e3 = e3_table(res_new)
-    e3.to_csv(fig_dir / "e3_mismatch.csv", index=False)
-    fig_e3(res_new, e3, fig_dir / "e3_mismatch.pdf")
+    if "e3" in only:
+        fig_e3(res, table("e3_mismatch.csv", lambda: e3_table(res)), path("e3_mismatch.pdf"))
 
-    a, b = e5a_table(res_new), e5b_table(res)
-    a.to_csv(fig_dir / "e5a_problem2.csv", index=False)
-    b.to_csv(fig_dir / "e5b_problem2.csv", index=False)
-    e5_notes = fig_e5(res_new, a, res, b, fig_dir / "e5_theory.pdf")
+    e5_notes = None
+    if "e5" in only:
+        a = table("e5a_problem2.csv", lambda: e5a_table(res))
+        b = table("e5b_problem2.csv", lambda: e5b_table(res))
+        e5_notes = fig_e5(res, a, b, path("e5_theory.pdf"))
 
-    e4, e4_by_budget = e4_tables(res)
-    e4.to_csv(fig_dir / "e4_cost.csv", index=False)
-    e4_by_budget.to_csv(fig_dir / "e4_cost_by_budget.csv", index=False)
-    write_e4_tex(e4, fig_dir / "e4_cost.tex")
+    if "e4" in only:
+        if from_csv:
+            e4 = pd.read_csv(path("e4_cost.csv"))
+        else:
+            e4, e4_by_budget = e4_tables(res)
+            e4.to_csv(path("e4_cost.csv"), index=False)
+            e4_by_budget.to_csv(path("e4_cost_by_budget.csv"), index=False)
+        write_e4_tex(e4, path("e4_cost.tex"))
 
-    summary = {
-        "results_dir": str(results_dir.resolve()),
-        "e2_dir": str(res_e2.dir.resolve()),
-        "e3_e5_dir": str(res_new.dir.resolve()),
-        "theory_dir": str(Path(theory_dir).resolve()) if theory_dir else None,
-        "sources": {"results_dir": ["E1", "E4", "E5b"], "e2_dir": ["E2"], "e3_e5_dir": ["E3", "E5a"]},
-        "e2_instances": {f: {"instance": c["instance_key"], "budget": c["budget"]}
-                         for f, c in (res_e2.e2_choice or {}).items()},
-        "estimate": {"E1, E3": "best of sampled strings and MP candidates", "E2": "MP candidates only",
-                     "E5": "Problem II"},
-        "bootstrap": {"samples": BOOTSTRAP_SAMPLES, "seed": BOOTSTRAP_SEED, "levels": "instances, then runs",
-                      "interval": "95% percentile"},
-        "e5_m_bound": E5_M_BOUND, "e5b_budgets": e5b_budgets(res),
-        "e5a_instances": {f: (s["descriptor"]["key"] if s else None)
-                          for f, s in res_new.selection.get("e5", {}).items()},
-        "e3_instance": res_new.selection["e3"]["descriptor"]["key"],
-        "record_counts": {"runs": int(len(res.runs)), "runs_e3_e5": int(len(res_new.runs)),
-                          "theory": int(len(res.theory)), "instances": int(len(res.instances))},
-        "e5": e5_notes,
-    }
-    (fig_dir / "summary.json").write_text(json.dumps(summary, indent=2, default=float))
-    print(f"figures and tables written to {fig_dir}")
+    s1_runs = None
+    if "s1" in only:
+        if from_csv:
+            s1 = pd.read_csv(path("s1_success.csv"))
+        else:
+            bp = pd.DataFrame(res.store.load("runs.jsonl", fields=S1_FIELDS, contains=['"experiment": "s1"']))
+            s1_runs = int(len(bp))
+            if bp.empty:
+                print(f"[plot] no S1 records in {results_dir}: S1 skipped", flush=True)
+                s1 = None
+            else:
+                s1, diagnostics = s1_tables(res, bp, np.random.default_rng(S1_BOOTSTRAP_SEED))
+                s1.to_csv(path("s1_success.csv"), index=False)
+                diagnostics.to_csv(path("s1_bp_diagnostics.csv"), index=False)
+        if s1 is not None:
+            fig_s1(s1, list(res.params.FAMILIES), path("s1_decoders.pdf"))
+
+    # Summaries (main/data, supplementary/data): a partial run (--only, --from-csv) updates the
+    # existing files. With --from-csv the tables, hence their sources, are those of the earlier run:
+    # only the E5 notes are refreshed.
+    fields = {section: {} for section in SECTIONS}
+    if not from_csv:
+        sources = res.store.path("sources.json")
+        common = {"results_dir": str(results_dir.resolve()),
+                  "stage_sources": json.loads(sources.read_text())["stages"] if sources.exists() else None}
+        fields["main"].update(common)
+        fields["supplementary"].update(common)
+        fields["main"].update({
+            "e2_instances": {f: {"instance": c["instance_key"], "budget": c["budget"]}
+                             for f, c in (res.e2_choice or {}).items()},
+            "estimate": {"E1": "best of sampled strings and MP candidates", "E2": "MP candidates only"},
+            "intervals": {"E1 distance": "median and quartiles", "E2": "Wilson 95%"},
+        })
+        fields["supplementary"].update({
+            "estimate": {"E1, E3": "best of sampled strings and MP candidates", "E5": "Problem II",
+                         "S1": "best of the 5 candidates (decoder only)"},
+            "bootstrap": {"samples": BOOTSTRAP_SAMPLES, "seed_e1": BOOTSTRAP_SEED, "seed_s1": S1_BOOTSTRAP_SEED,
+                          "levels": "instances, then runs", "interval": "95% percentile"},
+            "e5_m_bound": E5_M_BOUND, "e5b_budgets": e5b_budgets(res),
+            "e5a_instances": {f: (s["descriptor"]["key"] if s else None)
+                              for f, s in res.selection.get("e5", {}).items()},
+            "e3_instance": res.selection["e3"]["descriptor"]["key"],
+        })
+        if s1_runs is not None:
+            fields["supplementary"]["s1_records"] = s1_runs
+        if full:
+            fields["main"]["record_counts"] = {"runs": int(len(res.runs)), "theory": int(len(res.theory)),
+                                               "instances": int(len(res.instances))}
+    if e5_notes is not None:
+        fields["supplementary"]["e5"] = e5_notes
+    for section in SECTIONS:
+        target = fig_dir / section / "data" / "summary.json"
+        summary = json.loads(target.read_text()) if target.exists() and not full else {}
+        summary.update(fields[section])
+        summary["last_invocation"] = {"only": only, "from_csv": from_csv}
+        made = summary.setdefault("made_from", {})        # experiment -> results directory of its tables
+        for e in only:
+            if not from_csv and any(name.startswith(section) for name in OUTPUTS[e]):
+                made[e] = results_dir.name
+        target.write_text(json.dumps(summary, indent=2, default=float))
+    print(f"{', '.join(only)} from {results_dir} written to {fig_dir}"
+          + (" (from the saved tables)" if from_csv else ""))
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("results", help="results directory (E1, E2, E4, E5b; also E3 and E5a unless --e3-e5)")
-    parser.add_argument("--e3-e5", help="results directory holding the E3 and E5a sweeps (new run)")
-    parser.add_argument("--e2", help="results directory holding E2 (default: the results directory)")
-    parser.add_argument("--theory", help="directory whose theory.jsonl replaces the theory records for "
-                                         "E1, E3 and E5 (E2 keeps those of --e2)")
-    parser.add_argument("--figures", help="output directory (default: <E3/E5 dir or results>/figures)")
-    parser.add_argument("--overwrite", action="store_true", help="allow replacing figures in --figures")
+    parser.add_argument("results", nargs="?", help="results directory (default: the latest results/resultsN)")
+    parser.add_argument("--figures", default="figures", help="output directory (default: figures)")
     parser.add_argument("--workers", type=int, default=1, help="processes for the post-hoc best sampled string")
+    parser.add_argument("--only", nargs="+", choices=list(OUTPUTS), metavar="E",
+                        help=f"experiments to make, among {' '.join(OUTPUTS)} (default: all)")
+    parser.add_argument("--from-csv", action="store_true",
+                        help="draw from the tables already in --figures instead of recomputing them from the records")
     args = parser.parse_args()
-    results_dir = Path(args.results)
-    new_dir = Path(args.e3_e5) if args.e3_e5 else None
-    fig_dir = Path(args.figures) if args.figures else (new_dir or results_dir) / "figures"
-    make_figures(results_dir, fig_dir, new_dir, overwrite=args.overwrite, workers=args.workers,
-                 e2_dir=Path(args.e2) if args.e2 else None, theory_dir=Path(args.theory) if args.theory else None)
+    results_dir = Path(args.results) if args.results else latest_results()
+    make_figures(results_dir, Path(args.figures), workers=args.workers,
+                 only=args.only, from_csv=args.from_csv)
 
 
 if __name__ == "__main__":

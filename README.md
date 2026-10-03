@@ -1,199 +1,238 @@
 # MCCO revision numerics
 
-Numerics for the revision of *A Compressive Sensing Inspired Monte-Carlo Method for Combinatorial
-Optimization*, following [`simulation_plan.md`](simulation_plan.md). The runs cover E1, E2, E3, the
-E5 data, the E4 timings and the digital-annealing tuning of §6. They are built on the TrOMA library
-and write JSON-lines records; figures are made from these records only.
+Numerical experiments for the revision of *A Compressive Sensing Inspired Monte-Carlo Method for
+Combinatorial Optimization* (MCCO). The simulation writes every result as records in
+`results/`; the figures in `figures/` are made from those records only.
 
-## Layout
+The experiments ([`instructions/simulation_plan.md`](instructions/simulation_plan.md)):
 
-| Path | Content |
+| Experiment | Question | Figure |
+|---|---|---|
+| E1 | success and distance to the optimum vs the number of queries n, MCCO vs digital annealing | main + supplementary |
+| E2 | effect of the threshold t on two typical instances | main |
+| E3 | sketch matched vs mismatched to the rule length | supplementary |
+| E4 | wall-clock cost of each stage | main (LaTeX table) |
+| E5 | Theorem 1: Problem II failure vs the bound of Eq. (6) | supplementary |
+| S1 | basis pursuit vs matching pursuit as decoder | supplementary |
+
+---
+
+## 1. Reproducibility
+
+### Everything is seeded
+
+- **One master seed.** `MASTER_SEED` in [`params.py`](params.py) (20260926). Every random draw
+  (instance, sample, random sketch, annealing run) has its own seed, derived from the master seed
+  and the identifiers of the draw ([`mcco_sim/seeds.py`](mcco_sim/seeds.py)). A draw gets the same
+  seed whatever the number of workers or the order in which the work is done.
+- **Seeds are written in the records.** `instance_seed` in `instances.jsonl`; `sample_seed`,
+  `sketch_seed` (MCCO) and `run_seed` (annealing) in `runs.jsonl`; the annealing energy-scale seeds
+  in `da_delta.json`.
+- **Params are saved with the results.** Each results directory holds `params.json` (the resolved
+  values) and a copy of `params.py`. A run refuses to write into a directory made with other params.
+- **The environment is saved too.** `invocations.jsonl` records, for every command: the command
+  line, the git commit of this code, the TrOMA commit installed, the Python/numpy/scipy versions and
+  the hardware.
+
+### Reproduce a results directory
+
+```bash
+python run.py --reproduce --workers 48
+```
+
+This reruns every stage of the latest `results/resultsN`, with the `params.py` saved in it (so with
+the same seeds), into `results/resultsN_repro`. At the end it compares the two directories record
+by record (timings aside), prints the result and saves it as `reproduction.json`:
+
+```
+[reproduce] results/results5_repro vs results/results5
+  instances  1101/1101 units identical
+  theory     1001/1001 units identical
+  ...
+[reproduce] records identical (timings aside)
+```
+
+| Variant | Command |
 |---|---|
-| [`params.py`](params.py) | **every hyperparameter** (N, I, J, N_MIN, N_MAX, Q, sketches, annealing grid, E2/E3/E5, pilot size); the only place values live |
-| [`run.py`](run.py) | command-line entry point of the simulation |
-| [`plot.py`](plot.py) | figures (PDF) and tables from the records of a results directory |
-| `mcco_sim/params.py` | loads and validates `params.py` (all names required, no defaults in code) |
-| `mcco_sim/seeds.py` | seeds derived from the master seed and the identifiers of each draw |
-| `mcco_sim/instances.py` | rule families L and W, exact spectrum and ground truth, E2 selection |
-| `mcco_sim/sketches.py` | TrOMA sketch maps and decoders; Φ algebra for Problem II and the theory |
-| `mcco_sim/theory.py` | surrogate F, Θ_min, ν² (second moment), M bounds, Eq. (6)–(7) |
-| `mcco_sim/mcco.py` | MCCO runs through TrOMA: sample, threshold, sketch, matching pursuit |
-| `mcco_sim/annealing.py` | digital-annealing baseline |
-| `mcco_sim/stages.py`, `runner.py`, `records.py` | stages, work units and process pool, output directory |
-| `mcco_sim/checks.py`, `pilot.py` | correctness checks; pilot run and compute estimate |
-| `mcco_sim/aggregates.py` | two-level bootstrap, Wilson intervals (used by `plot.py`) |
-| `mcco_sim/posthoc.py` | best sampled string of a run (new runs, and recomputation for old records) |
-| `mcco_sim/bp.py`, `mcco_sim/walsh.py`, `mcco_sim/s2.py` | S1 basis pursuit; Walsh coefficients and the S2 error budget |
-| [`supplementary.py`](supplementary.py) | supplementary figures S1–S3 |
-| `tests/` | pytest: the checks, params loading, every stage on tiny params |
-| [`pyproject.toml`](pyproject.toml) | dependencies (Python ≥ 3.11, pinned numpy/scipy, TrOMA), package and pytest settings |
+| only some stages (the others are copied from the original) | `python run.py --reproduce --stage e2 --workers 48` |
+| an older results directory | `python run.py --reproduce results/results3 --workers 48` |
+| compare two existing directories, no rerun | `python -m mcco_sim.reproduce results/results5 results/results5_repro` |
+| check the code against its recorded seeds (~5 s) | `python run.py --stage selftest` |
 
-## Environment
+A full reproduction is the whole simulation (hours on 48 cores); an interrupted one resumes with the
+same command. Records are identical up to floating-point details: another CPU or BLAS library can
+change the last digits.
+
+### Install
 
 ```bash
 uv venv .venv --python 3.11
-uv pip install --python .venv/bin/python -e ".[test]"   # or ".[plots]" for plot.py only
+uv pip install --python .venv/bin/python -e ".[test]"     # or ".[plots]" to make the figures only
 ```
 
-Dependencies are declared in [`pyproject.toml`](pyproject.toml), which also installs `mcco_sim` as
-an editable package. TrOMA is installed from the branch `perf/vectorized-marginals` on GitHub
-(baptistechev/TrOMA). That branch adds the vectorized sketch marginals, sparse sketching with
-`ExplicitSketchMap`, and `DitString.from_integers`. The install works with uv and plain pip, and the
-commit actually installed is recorded in every `invocations.jsonl` entry (`troma_source`).
-
-## Running
-
-Edit `params.py`, then:
+Dependencies are pinned in [`pyproject.toml`](pyproject.toml). TrOMA is installed from GitHub
+(`baptistechev/TrOMA`, branch `perf/vectorized-marginals`); the commit used by a run is in its
+`invocations.jsonl` (`troma_source`). A [`Dockerfile`](Dockerfile) gives the same environment:
 
 ```bash
-python run.py --stage selftest                          # correctness checks (~5 s)
-python run.py --stage pilot --out pilot                 # checks + timings + compute estimate
-python run.py --stage all --out results --workers 16    # everything
-python run.py --stage instances theory sweep --out results_v2 --workers 48   # several stages
-python -m pytest                                        # test suite (~30 s)
+docker build -t mcco-sim .
+docker run --rm -v $(pwd):/app mcco-sim python run.py --stage selftest
 ```
 
-- **Stages:** `instances`, `theory`, `tuning`, `e1`, `sweep`, `e2select` and `e2`. `all` runs them
-  in this order, and each can also be run on its own (`--stage` accepts several).
-- **E2 selection:** `e2select` picks the E2 instances and budget from the E1 success curves
-  (`e2_selection_edits.md`). It reads the E1 runs of the output directory, or of another one with
-  `--e1-records DIR` (read-only).
-- **Other params file:** `--params other.py` uses another hyperparameter file.
-- **Resuming:** an interrupted stage restarts with the same command. Finished work units are listed
-  in `progress.jsonl` and skipped.
-- **One params set per directory:** an output directory keeps its params (`params.json` and a copy of
-  `params.py`). Different values need a different `--out`.
-- **Random sketch on a subset:** it is the cost bottleneck, so `SKETCHES` in `params.py` limits it
-  to the first 10 instance ids of each (family, |R|) ensemble in E1 (`"e1_instances"`). It is not
-  used in the sweep, E2 or the E3 theory (`"single_instance": False`). Its theory checks cover the
-  same E1 subset.
-- **Memory:** a worker running the random sketch stores a 512 × 2^20 float64 matrix (4.3 GB), plus
-  about 0.5 GB of work arrays. Other units don't build it. Choose `--workers` accordingly.
-- **Threads:** BLAS uses one thread per worker unless `--blas-threads` is given.
+---
 
-## Figures
+## 2. Run a part of the simulation
 
 ```bash
-python plot.py results --e2 results_e2 --e3-e5 results_v2 --workers 8   # E1, E4, E5b from results; E2 from results_e2; E3, E5a from results_v2
-python plot.py results_v2 --workers 8                   # everything from one directory
-python plot.py results --figures figs                   # choose the output directory
-python plot.py results --e2 results_e2 --e3-e5 results_v2 --theory results_theory_nu2   # theory records from another directory
+python run.py --stage <stages> --workers 48
 ```
 
-`plot.py` only reads the results directories: all parts of the record files (`runs.jsonl`,
-`runs.NNN.jsonl`, …) of committed units, and the resolved `params.json`. It never writes into
-them except the default `figures/` subdirectory. It refuses to write into a directory that already
-holds figures unless `--overwrite` is given, so earlier figures are never replaced by accident.
-The default output is `<e3-e5 dir>/figures`, or `<results>/figures` without `--e3-e5`.
-`--e2 DIR` and `--e3-e5 DIR` default to the results directory. `--theory DIR` replaces the theory
-records of the results and `--e3-e5` directories (E1, E3, E5) by those of DIR; E2 keeps the theory of
-`--e2`.
+The run goes to a new directory, `results/results<N+1>` after the latest `results/resultsN`. Only
+the stages given are computed; **every other stage is copied from the previous directory**, so the
+new directory is complete and the figures can be made from it alone. `run.py` prints what it copied.
 
-The plot-only settings are constants at the top of `plot.py`: bootstrap size and seed, the E5b
-budgets, and the M of the Eq. (6) bound. They don't affect the simulation.
+| Stage | Computes | For |
+|---|---|---|
+| `instances` | every instance (rules, exact spectrum, optimum), the E3 instance | all |
+| `theory` | Theorem 1 / Corollary 1 quantities per instance and sketch | E5, E3 |
+| `tuning` | annealing energy scale and tuning grid, chosen setting | E1 (annealing) |
+| `e1` | MCCO (every sketch) and digital annealing on the E1 instances | E1, E4, E5b |
+| `sweep` | 300 runs on the E3 instance and on the E5a instances (chosen from `theory`) | E3, E5a |
+| `e2select` | the two E2 instances and budget, from the E1 success curves | E2 |
+| `e2` | threshold sweep on the E2 instances | E2 |
+| `s1` | basis-pursuit decoding of E1 samples (not part of `all`) | S1 |
 
-**MCCO estimate.** x̂ is the best of the sampled strings and the 5 MP candidates (no extra query),
-the same rule as digital annealing.
-- New runs record both this outcome and the MP-only one (`*_mp` fields).
-- Records written before this change hold only the MP-only outcome. For them, `plot.py` recomputes
-  the best sampled string from the recorded seeds (`mcco_sim/posthoc.py`, cached in
-  `sample_best.csv`). This takes about 2 min with 8 workers for the E1 records.
-- Which outcome each figure uses:
-  - E1 and E3: the combined outcome;
-  - E2: MP-only, to show the effect of the threshold on the decoding;
-  - E5: Problem II.
+Examples:
 
-| Output | Content |
+```bash
+python run.py --stage e1 --workers 48                  # rerun E1, copy the rest
+python run.py --stage instances theory --workers 48    # recompute the instances and the theory
+python run.py --stage all --workers 48                 # everything except s1
+python run.py --stage s1 --workers 16                  # S1 (memory-bound: ~16 workers is best)
+```
+
+Good to know:
+
+- **List every stage to redo in the first command.** A stage copied into a directory cannot be
+  rerun there later (`run.py` refuses); use a new directory. Stages depending on a copied stage use
+  the copy: rerunning `e1` alone keeps the E2 instances chosen from the old E1 runs.
+- **Interrupted?** Run the same command again: it goes back to the unfinished directory and skips
+  the work already done (`progress.jsonl`).
+- **Changing params.** Edit `params.py` (the only place values live; the code has no defaults).
+  If a copied stage depended on a changed value, `run.py` lists the change but still copies it.
+- **Other output.** `--out DIR` writes elsewhere (e.g. `--out results/pilot`); such a directory is
+  never picked by `plot.py`. `--from DIR` copies from another directory, `--from none` copies nothing.
+- **Pilot.** `python run.py --stage pilot --out results/pilot` times a few units and estimates the
+  cost of the full run.
+- **Memory.** A worker running the random sketch holds a 512 × 2^20 matrix (4.3 GB); other work
+  is light. BLAS uses one thread per worker (`--blas-threads` to change).
+
+---
+
+## 3. Make a plot
+
+```bash
+python plot.py --workers 8
+```
+
+This builds **every figure from the latest `results/resultsN`** into `figures/`, replacing the
+previous version.
+
+| Figure | `--only` | Output |
+|---|---|---|
+| E1 distance to the optimum vs n | `e1` | `figures/main/plot/e1_distance.pdf` |
+| E1 success vs n | `e1` | `figures/supplementary/plot/e1_success.pdf` |
+| E2 success vs threshold | `e2` | `figures/main/plot/e2_threshold.pdf` |
+| E3 matched vs mismatched sketch | `e3` | `figures/supplementary/plot/e3_mismatch.pdf` |
+| E4 cost per stage | `e4` | `figures/main/plot/e4_cost.tex` |
+| E5 theory check | `e5` | `figures/supplementary/plot/e5_theory.pdf` |
+| S1 decoders | `s1` | `figures/supplementary/plot/s1_decoders.pdf` |
+
+Each figure's table is in the matching `data/` folder (same name, `.csv`).
+
+| To | Command |
 |---|---|
-| `e1_success.pdf`, `e1_success.csv` | success rate vs n, 2 × 5 panels (family × \|R\|), two-level bootstrap 95% intervals; MP-only rates in the CSV |
-| `e1_distance.pdf` | median distance to the optimum (σ_f units) with IQR; percentile ranks in `e1_success.csv` |
-| `e2_threshold.pdf`, `.csv` | success (Wilson intervals) and distance (median, IQR) vs threshold percentile on the two E2 instances at n*, Q marked; Var(T_t f) and Θ_min in the CSV |
-| `e3_mismatch.pdf`, `.csv` | (a) success and (b) distance vs n on the E3 instance, quadruplet (matched) vs quintuplet (mismatched) |
-| `e5_theory.pdf`, `e5a_problem2.csv`, `e5b_problem2.csv` | (a) Problem II failure vs n on the E5 instances with the Eq. (6) bound and Eq. (7) size; (b) Problem II success vs the predicted exponent on the E1 instances |
-| `e4_cost.csv`, `e4_cost.tex`, `e4_cost_by_budget.csv` | median wall-clock per stage, every method × family at n = 102.4k (\|R\| pooled); every budget in `_by_budget` |
-| `summary.json` | sources of each figure, aggregate settings and seeds, record counts, E3/E5 instances, Eq. (7) sizes, Spearman correlations of E5b |
+| make some figures only | `python plot.py --only e2 e5` |
+| plot from an older results directory | `python plot.py results/results3 --only e2` |
+| redraw after changing the drawing code only (seconds) | `python plot.py --only e5 --from-csv` |
+| write somewhere else | `python plot.py --figures figs` |
 
-## Revision edits (`figure_edits.md`, `e2_selection_edits.md`): what to rerun
+- `--from-csv` reads the tables already in `figures/` instead of recomputing them from the records.
+  Use a normal run when the data or the table computation changed.
+- Each `data/summary.json` records which results directory every figure was made from
+  (`made_from`), plus the settings and seeds of the statistics.
+- Plot-only settings (bootstrap size and seed, E5 panels) are constants at the top of
+  [`plot.py`](plot.py); they don't affect the simulation.
+- **MCCO estimate.** E1 and E3 use the best of the sampled strings and the 5 matching-pursuit
+  candidates; E2 the matching-pursuit candidates only; E5 Problem II; S1 the decoders alone. E1
+  records written before this rule hold the matching-pursuit outcome only: `plot.py` recomputes the
+  best sampled string from their seeds once (~2 min with 8 workers) and caches it in
+  `figures/main/data/sample_best.csv`.
 
-The first run stays in `results/`. The new `params.py` (`E3_R = 3`, `E5_N_MAX = 409_600`) differs
-from `results/params.json`, and `run.py` refuses to write into a directory with other params. The
-new runs therefore go to a new directory:
+---
 
-```bash
-python run.py --stage instances theory sweep --out results_v2 --workers 48                        # E3, E5a
-python run.py --stage instances e2select e2 --out results_e2 --e1-records results --workers 48    # E2
-python plot.py results --e2 results_e2 --e3-e5 results_v2 --workers 8
+## 4. Repository architecture
+
+```
+params.py          every hyperparameter (the only place values live)
+run.py             runs the simulation (stages, --reproduce)
+plot.py            makes every figure and table from one results directory
+mcco_sim/          the simulation package
+tests/             pytest: checks, params, every stage on tiny params, figures
+results/           results1/, results2/, ...: the records of each run
+figures/           main/ and supplementary/, each with data/ (CSV) and plot/ (PDF)
+instructions/      plans and edit notes behind the code (simulation plan, revision edits)
+Dockerfile, pyproject.toml
 ```
 
-| Edit | New simulation? |
+### `mcco_sim/`
+
+| Module | Role |
 |---|---|
-| 1 decade ticks, 3 no n₉₀, 7 E4 table | no: plotted from `results/` |
-| 4 E2 layout, and E2 selection (`e2_selection_edits.md`) | **yes** for the new instances and n*: `instances`, `e2select` (reads E1 from `results/`), `e2` (grid theory + runs) in `results_e2`; about 7 min on 48 cores |
-| 2 best of sample ∪ MP | no for `results/` (recomputed from the seeds); recorded directly by new runs |
-| 5 E3: \|R\| = 3, draw 0 | **yes**: `instances` (E3 instance), `theory` (its checks), `sweep` (E3 runs) |
-| 6 E5a: new instances, n up to 409.6k | **yes**: `theory` (the selection reads `theory.jsonl` of the same directory), `sweep` (E5 roles, Problem II only) |
+| `params.py` | loads and checks `params.py` (every name required) |
+| `seeds.py` | seeds derived from the master seed and the identifiers of each draw |
+| `instances.py` | rule families L and W, exact spectrum and optimum, instance selection |
+| `sketches.py` | TrOMA sketch maps and decoders; sketch algebra for Problem II and the theory |
+| `theory.py` | Theorem 1 / Corollary 1 quantities: surrogate F, Θ_min, ν², M bounds, Eq. (6)–(7) |
+| `mcco.py` | one MCCO run: sample, threshold, sketch, matching pursuit |
+| `annealing.py` | digital-annealing baseline |
+| `bp.py` | basis-pursuit decoder (S1) |
+| `posthoc.py` | best sampled string of a run, recomputed from its seed |
+| `stages.py`, `runner.py` | the stages, split into work units run by a process pool |
+| `records.py` | results directories: records, committed units, params, provenance |
+| `inherit.py` | copies the stages not rerun from the previous results directory |
+| `reproduce.py` | compares two results directories record by record |
+| `checks.py`, `pilot.py` | correctness checks (`selftest`); pilot run and cost estimate |
+| `aggregates.py` | bootstrap and Wilson intervals |
 
-The sweep no longer runs the E2 instances (they only served the old E2 budget choice). The
-theory stage recomputes the E1 theory, which is deterministic and identical to `results/`. It
-costs about 5 CPU-h, mostly the random sketch on its 100 instances, and is needed for the E5
-selection. `tuning`, `e1` and `e2` are not rerun.
-
-## Second moment ν² in Theorem 1 (`e5_nu2_edits.md`)
-
-Eq. (6)–(7) now use ν² = max_{x≠x*} E_s[Δ_x(s)²] instead of the variance (field `nu2` of
-`theory.jsonl`, was `sigma2`). Only the theory records change; the runs are not rerun. The theory
-stage is recomputed in a fresh directory (in `results` and `results_v2` its units are already
-committed and would be skipped):
-
-```bash
-python run.py --stage selftest
-python run.py --stage instances theory --out results_theory_nu2 --workers 48   # ~20 min
-python plot.py results --e3-e5 results_v2 --e2 results_e2 --theory results_theory_nu2 --figures figures_nu2
-```
-
-Only `e5_theory.pdf`, `e5a_problem2.csv` and `e5b_problem2.csv` are expected to differ.
-
-## Supplementary numerics (`supplementary_numerics_plan.md`)
-
-```bash
-python run.py --stage s1 --out results_s1 --workers 16          # S1: basis-pursuit decoding (~1.5 h)
-python supplementary.py results --e2 results_e2 --e3-e5 results_v2 --s1 results_s1 --figures figures_supp --workers 8
-```
-
-- **S1** (new runs): nonnegative basis pursuit on the same E1 samples, thresholds and sketches.
-  Its records go in `results_s1/`. The matching-pursuit outcomes come from the E1 records.
-  `s1` is not part of `--stage all`. Scope (`S1_*` in `params.py`): quadruplet and quintuplet
-  (random dropped, ~21 h per unit), instance ids < 20 per family, samples 0-4, every other budget
-  down from `N_MAX`: 400 units of 6 decodes. BP is memory-bandwidth bound: throughput peaks at
-  ~16 workers (one unit ~1 min alone, ~3.5 min with 16 workers running).
-- **S2** (post hoc, no new runs): error budget of the structured sketches in the ±1 Walsh basis
-  (`mcco_sim/walsh.py`, `mcco_sim/s2.py`). The per-instance and per-run tables are cached in the
-  figures directory.
-- **S3** (plotting only): per-instance E1 success at n = 6400.
-- Without `--s1`, S2 and S3 are made and S1 is skipped.
-
-| Output | Content |
-|---|---|
-| `s1_decoders.pdf`, `s1_success.csv`, `s1_bp_diagnostics.csv` | success vs n, BP vs MP (decoder-only, bootstrap intervals), rows = families, columns = sketches; decode times, η and BP residuals |
-| `s2a_coefficient_error.pdf` | ε_samp vs n (E5a instances) and vs threshold (E2 instances), with the Hoeffding + union bound, Δ/(4k) and the bias b_t |
-| `s2b_sketching_error.pdf`, `s2_instances.csv` | L/Δ vs ‖f − F_K‖∞/Δ per unique-maximizer E1 instance, colored by E1 success |
-| `s2c_condition.csv`, `.tex`, `s2_runs.csv` | fraction of runs with kε + L < Δ/2, split by argmax F̂_K = x* and by Problem II success |
-| `s3_success_distribution*.pdf`, `s3_success_vs_properties.pdf`, `s3_per_instance_success.csv` | per-instance success histograms (\|R\| = 5, and all \|R\|), success vs γ/f* and WH sparsity |
-
-## Outputs (`--out`)
+### A results directory
 
 | File | Content |
 |---|---|
-| `params.json`, `params.py` | the hyperparameters of this directory (resolved values and file copy) |
-| `invocations.jsonl` | per invocation: argv, TrOMA install source (git URL + commit), git commit/dirty of `mcco_paper`, versions, hardware |
-| `instances.jsonl` | one record per instance (rules, ground truth, gap, WH sparsity, maximizers, seeds) |
-| `selection.json` | E3 instance, E5a instances (added by the sweep stage), E2 instances (added by `e2select`) |
-| `theory.jsonl` | per instance × sketch × threshold: max preserved by G, Θ_min, ν², M bounds, Eq. (6)/(7) |
-| `da_delta.json`, `tuning_runs.jsonl`, `tuning_choice.json` | digital-annealing δ per ensemble, tuning grid runs, chosen setting |
-| `runs.jsonl` | one record per MCCO run (method `mcco`) or annealing run (`da`); `record: problem2` rows hold Problem II only (E1, fixed t = exact Q-th percentile) |
-| `e2_budget_choice.json` | E2 instance and budget n* per family, d_i, pool medians m_k(n) and the instance's s_ik(n) |
-| `progress.jsonl` | committed work units; readers ignore records of uncommitted units |
+| `params.json`, `params.py` | the params of this run (resolved values and file copy) |
+| `invocations.jsonl` | every command run here: command line, code and TrOMA commits, versions, hardware |
+| `sources.json` | which results directory each stage comes from (when some were copied) |
+| `instances.jsonl` | one record per instance: rules, optimum, gap, maximizers, seed |
+| `theory.jsonl` | per instance, sketch and threshold: Θ_min, ν², M bounds, Eq. (6)/(7) |
+| `runs.jsonl` | one record per MCCO or annealing run (E1, sweep, E2, S1), with its seeds |
+| `tuning_runs.jsonl`, `da_delta.json`, `tuning_choice.json` | annealing tuning runs, energy scale, chosen setting |
+| `selection.json`, `e2_budget_choice.json` | E3, E5a and E2 instances; E2 budget |
+| `progress.jsonl` | finished work units (records of unfinished units are ignored) |
+| `reproduction.json` | comparison with the original (`*_repro` directories only) |
 
-Seeds: every record holds the identifiers and the derived 64-bit seeds (`instance_seed`,
-`sample_seed`, `sketch_seed`, `run_seed`). `numpy.random.default_rng(seed)` reproduces a single run
-(see `derive_seed`, `generate_rules`, `mcco_sample`, `digital_annealing`).
+Large files are split into parts of at most 50 MB (`runs.001.jsonl`, ...). Copies from the previous
+directory are named `*.inherited.NNN.jsonl`.
+
+### The results so far
+
+| Directory | Ran | Why |
+|---|---|---|
+| `results1` | every stage (2026-09-26) | first run |
+| `results2` | `instances theory sweep` (2026-09-27) | revised E3 (\|R\| = 3) and E5a (n up to 409.6k) |
+| `results3` | `instances e2select e2` (2026-09-27) | new E2 instance selection |
+| `results4` | `s1` (2026-09-28) | basis pursuit |
+| `results5` | `instances theory` (2026-10-03) | Theorem 1 with ν² instead of σ² |
+
+Each directory also holds everything it did not rerun, so `results5` is the complete, latest state.
+The notes in `instructions/` use the former names: `results` = results1, `results_v2` = results2,
+`results_e2` = results3, `results_s1` = results4, `results_theory_nu2` = results5.

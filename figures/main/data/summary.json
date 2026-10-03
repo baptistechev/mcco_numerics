@@ -1,0 +1,53 @@
+{
+  "results_dir": "/app/results",
+  "e2_dir": "/app/results_e2",
+  "e2_instances": {
+    "L": {
+      "instance": "e1/L/R5/48",
+      "budget": 6400
+    },
+    "W": {
+      "instance": "e1/W/R5/26",
+      "budget": 6400
+    }
+  },
+  "estimate": {
+    "E1, E3": "best of sampled strings and MP candidates",
+    "E2": "MP candidates only",
+    "E5": "Problem II"
+  },
+  "bootstrap": {
+    "samples": 2000,
+    "seed": 20260927,
+    "levels": "instances, then runs",
+    "interval": "95% percentile"
+  },
+  "record_counts": {
+    "runs": 708000,
+    "runs_e3_e5": 38400,
+    "theory": 4204,
+    "instances": 1101
+  },
+  "sources": {
+    "results_dir": [
+      "E1",
+      "E4",
+      "E5b"
+    ],
+    "e2_dir": [
+      "E2"
+    ],
+    "e3_e5_dir": [
+      "E3",
+      "E5a"
+    ]
+  },
+  "last_invocation": {
+    "only": [
+      "e2",
+      "e5"
+    ],
+    "from_csv": true
+  },
+  "made_from": {}
+}

@@ -98,6 +98,35 @@ def provenance(params: Params, stage: str, workers: int) -> dict:
     }
 
 
+def _numbered(root: str | Path) -> list[tuple[int, Path]]:
+    return sorted((int(p.name[len("results"):]), p) for p in Path(root).glob("results*")
+                  if p.is_dir() and p.name[len("results"):].isdigit())
+
+
+def latest_results(root: str | Path = "results") -> Path:
+    """The results directory with the highest number, ``<root>/resultsN``."""
+    numbered = _numbered(root)
+    if not numbered:
+        raise SystemExit(f"no results directory (resultsN) in {root}/")
+    return numbered[-1][1]
+
+
+def unfinished(directory: Path) -> bool:
+    """Whether the last run started in ``directory`` has not ended (interrupted, or still running)."""
+    events = [json.loads(line).get("event") for line in RecordStore(directory).lines("invocations.jsonl")
+              if line.strip()] if (directory / "invocations.jsonl").exists() else []
+    return bool(events) and events[-1] == "start"
+
+
+def next_results(root: str | Path = "results") -> Path:
+    """Default output of a run: the latest ``<root>/resultsN`` if its last run did not end (so that
+    the same command resumes it), else a new ``<root>/results<N+1>``."""
+    numbered = _numbered(root)
+    if numbered and unfinished(numbered[-1][1]):
+        return numbered[-1][1]
+    return Path(root) / f"results{numbered[-1][0] + 1 if numbered else 1}"
+
+
 class RecordStore:
     """Read-only view of an output directory (no params check): used for plotting old results."""
 
@@ -107,12 +136,18 @@ class RecordStore:
     def path(self, name: str) -> Path:
         return self.dir / name
 
-    def parts(self, name: str) -> list[Path]:
-        """Existing parts of a JSON-lines file, in order: ``runs.jsonl``, ``runs.001.jsonl``, ``runs.002.jsonl``, ..."""
+    def own_parts(self, name: str) -> list[Path]:
+        """Parts written by this directory's runs, in order: ``runs.jsonl``, ``runs.001.jsonl``, ..."""
         stem, ext = name.rsplit(".", 1)
         first = self.path(name)
         rest = sorted(self.dir.glob(f"{stem}.[0-9][0-9][0-9].{ext}"))
         return ([first] if first.exists() else []) + rest
+
+    def parts(self, name: str) -> list[Path]:
+        """Every part of a JSON-lines file: the copies inherited from the previous results directory
+        (``runs.inherited.000.jsonl``, ..., see mcco_sim/inherit.py), then this directory's own parts."""
+        stem, ext = name.rsplit(".", 1)
+        return sorted(self.dir.glob(f"{stem}.inherited.[0-9][0-9][0-9].{ext}")) + self.own_parts(name)
 
     def lines(self, name: str):
         """Lines of a JSON-lines file across all its parts."""
@@ -165,7 +200,7 @@ class Output(RecordStore):
 
     def append(self, name: str, records: list[dict]) -> None:
         data = "".join(dumps(rec) + "\n" for rec in records).encode()
-        parts = self.parts(name)
+        parts = self.own_parts(name)                 # never into an inherited copy
         target = parts[-1] if parts else self.path(name)
         if target.exists() and target.stat().st_size > 0 and target.stat().st_size + len(data) > PART_BYTES:
             stem, ext = name.rsplit(".", 1)

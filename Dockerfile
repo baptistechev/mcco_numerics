@@ -21,6 +21,6 @@ RUN uv pip install --system --no-cache -r /tmp/pyproject.toml --extra test
 # Source files mounted at runtime (outputs land in the mounted directory):
 #   docker build -t mcco-sim .
 #   docker run --rm -v $(pwd):/app mcco-sim
-#   docker run --rm -v $(pwd):/app mcco-sim python run.py --stage all --out results --workers 16
+#   docker run --rm -v $(pwd):/app mcco-sim python run.py --stage all --out results/results6 --workers 16
 #   docker run --rm -v $(pwd):/app mcco-sim python -m pytest
 CMD ["python", "run.py", "--stage", "selftest"]

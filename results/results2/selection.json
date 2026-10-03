@@ -1,0 +1,149 @@
+{
+  "e3": {
+    "descriptor": {
+      "ensemble": "e3",
+      "family": "L",
+      "n_rules": 3,
+      "instance_id": 0,
+      "N": 20,
+      "rule_lengths": [
+        4
+      ],
+      "seed_identifiers": [
+        "e3_instance",
+        20,
+        0,
+        3,
+        0
+      ],
+      "instance_seed": 16674575502949278456,
+      "key": "e3/L/R3/0"
+    }
+  },
+  "e5": {
+    "L": {
+      "descriptor": {
+        "ensemble": "e1",
+        "family": "L",
+        "n_rules": 3,
+        "instance_id": 35,
+        "N": 20,
+        "rule_lengths": [
+          4,
+          5,
+          6
+        ],
+        "seed_identifiers": [
+          "instance",
+          20,
+          0,
+          3,
+          35
+        ],
+        "instance_seed": 16438543941649997934,
+        "key": "e1/L/R3/35"
+      },
+      "n_star": {
+        "quadruplet": 118728.12352843197,
+        "quintuplet": 300232.5492872371
+      },
+      "max_n_star": 300232.5492872371,
+      "eligible": 130,
+      "rule": "E1, |R| >= 2, unique maximizer, max preserved by G for every sketch; min over instances of max over sketches of N ln 2 / exponent (M valid)"
+    },
+    "W": {
+      "descriptor": {
+        "ensemble": "e1",
+        "family": "W",
+        "n_rules": 4,
+        "instance_id": 34,
+        "N": 20,
+        "rule_lengths": [
+          4,
+          5,
+          6
+        ],
+        "seed_identifiers": [
+          "instance",
+          20,
+          1,
+          4,
+          34
+        ],
+        "instance_seed": 17253351130762095293,
+        "key": "e1/W/R4/34"
+      },
+      "n_star": {
+        "quadruplet": 193056.71142987613,
+        "quintuplet": 340832.98245993996
+      },
+      "max_n_star": 340832.98245993996,
+      "eligible": 131,
+      "rule": "E1, |R| >= 2, unique maximizer, max preserved by G for every sketch; min over instances of max over sketches of N ln 2 / exponent (M valid)"
+    }
+  },
+  "e2": {
+    "L": {
+      "descriptor": {
+        "ensemble": "e1",
+        "family": "L",
+        "n_rules": 5,
+        "instance_id": 32,
+        "N": 20,
+        "rule_lengths": [
+          4,
+          5,
+          6
+        ],
+        "seed_identifiers": [
+          "instance",
+          20,
+          0,
+          5,
+          32
+        ],
+        "instance_seed": 12964194556055573769,
+        "key": "e1/L/R5/32"
+      },
+      "gap": 0.2272062447942762,
+      "wh_sparsity": 512,
+      "median_gap": 0.2272062447942762,
+      "iqr_gap": 0.5573211549905768,
+      "median_wh_sparsity": 512.0,
+      "iqr_wh_sparsity": 1.5,
+      "score": 0.0,
+      "pool_size": 67
+    },
+    "W": {
+      "descriptor": {
+        "ensemble": "e1",
+        "family": "W",
+        "n_rules": 5,
+        "instance_id": 34,
+        "N": 20,
+        "rule_lengths": [
+          4,
+          5,
+          6
+        ],
+        "seed_identifiers": [
+          "instance",
+          20,
+          1,
+          5,
+          34
+        ],
+        "instance_seed": 13203004216342021083,
+        "key": "e1/W/R5/34"
+      },
+      "gap": 0.17802841149357462,
+      "wh_sparsity": 387,
+      "median_gap": 0.19125673833934798,
+      "iqr_gap": 0.4585594635050567,
+      "median_wh_sparsity": 391.5,
+      "iqr_wh_sparsity": 188.0,
+      "score": 0.05278374157169284,
+      "pool_size": 68
+    }
+  }
+}

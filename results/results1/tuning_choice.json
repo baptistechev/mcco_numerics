@@ -1,0 +1,313 @@
+{
+  "criterion": "mean success over budget grid and tuning instances",
+  "chosen": {
+    "setting_id": 5,
+    "multipliers": {
+      "T0_mult": 0.5,
+      "Tend_mult": 1.0,
+      "offset_mult": 2.0
+    },
+    "mean_success": 0.4598333333333333,
+    "mean_functional_distance": 1.4515499089381385,
+    "n_runs": 12000
+  },
+  "table": [
+    {
+      "setting_id": 0,
+      "multipliers": {
+        "T0_mult": 0.5,
+        "Tend_mult": 0.5,
+        "offset_mult": 0.5
+      },
+      "mean_success": 0.45841666666666664,
+      "mean_functional_distance": 1.4246394519186658,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 1,
+      "multipliers": {
+        "T0_mult": 0.5,
+        "Tend_mult": 0.5,
+        "offset_mult": 1.0
+      },
+      "mean_success": 0.45958333333333334,
+      "mean_functional_distance": 1.4241802303212758,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 2,
+      "multipliers": {
+        "T0_mult": 0.5,
+        "Tend_mult": 0.5,
+        "offset_mult": 2.0
+      },
+      "mean_success": 0.45941666666666664,
+      "mean_functional_distance": 1.4232142606590465,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 3,
+      "multipliers": {
+        "T0_mult": 0.5,
+        "Tend_mult": 1.0,
+        "offset_mult": 0.5
+      },
+      "mean_success": 0.4588333333333333,
+      "mean_functional_distance": 1.453065342895775,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 4,
+      "multipliers": {
+        "T0_mult": 0.5,
+        "Tend_mult": 1.0,
+        "offset_mult": 1.0
+      },
+      "mean_success": 0.459,
+      "mean_functional_distance": 1.4524219834132504,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 5,
+      "multipliers": {
+        "T0_mult": 0.5,
+        "Tend_mult": 1.0,
+        "offset_mult": 2.0
+      },
+      "mean_success": 0.4598333333333333,
+      "mean_functional_distance": 1.4515499089381385,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 6,
+      "multipliers": {
+        "T0_mult": 0.5,
+        "Tend_mult": 2.0,
+        "offset_mult": 0.5
+      },
+      "mean_success": 0.4354166666666667,
+      "mean_functional_distance": 1.5140741862202325,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 7,
+      "multipliers": {
+        "T0_mult": 0.5,
+        "Tend_mult": 2.0,
+        "offset_mult": 1.0
+      },
+      "mean_success": 0.436,
+      "mean_functional_distance": 1.5142159706520548,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 8,
+      "multipliers": {
+        "T0_mult": 0.5,
+        "Tend_mult": 2.0,
+        "offset_mult": 2.0
+      },
+      "mean_success": 0.4349166666666667,
+      "mean_functional_distance": 1.5142548555565802,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 9,
+      "multipliers": {
+        "T0_mult": 1.0,
+        "Tend_mult": 0.5,
+        "offset_mult": 0.5
+      },
+      "mean_success": 0.45158333333333334,
+      "mean_functional_distance": 1.4695422271001355,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 10,
+      "multipliers": {
+        "T0_mult": 1.0,
+        "Tend_mult": 0.5,
+        "offset_mult": 1.0
+      },
+      "mean_success": 0.4515,
+      "mean_functional_distance": 1.4686080219989426,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 11,
+      "multipliers": {
+        "T0_mult": 1.0,
+        "Tend_mult": 0.5,
+        "offset_mult": 2.0
+      },
+      "mean_success": 0.45366666666666666,
+      "mean_functional_distance": 1.46838000385406,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 12,
+      "multipliers": {
+        "T0_mult": 1.0,
+        "Tend_mult": 1.0,
+        "offset_mult": 0.5
+      },
+      "mean_success": 0.4384166666666667,
+      "mean_functional_distance": 1.5268434669423903,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 13,
+      "multipliers": {
+        "T0_mult": 1.0,
+        "Tend_mult": 1.0,
+        "offset_mult": 1.0
+      },
+      "mean_success": 0.43825,
+      "mean_functional_distance": 1.5263912826331814,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 14,
+      "multipliers": {
+        "T0_mult": 1.0,
+        "Tend_mult": 1.0,
+        "offset_mult": 2.0
+      },
+      "mean_success": 0.4399166666666667,
+      "mean_functional_distance": 1.5256491780680377,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 15,
+      "multipliers": {
+        "T0_mult": 1.0,
+        "Tend_mult": 2.0,
+        "offset_mult": 0.5
+      },
+      "mean_success": 0.4003333333333333,
+      "mean_functional_distance": 1.6055453238173736,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 16,
+      "multipliers": {
+        "T0_mult": 1.0,
+        "Tend_mult": 2.0,
+        "offset_mult": 1.0
+      },
+      "mean_success": 0.40025,
+      "mean_functional_distance": 1.6053332466691008,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 17,
+      "multipliers": {
+        "T0_mult": 1.0,
+        "Tend_mult": 2.0,
+        "offset_mult": 2.0
+      },
+      "mean_success": 0.40058333333333335,
+      "mean_functional_distance": 1.6055230306624053,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 18,
+      "multipliers": {
+        "T0_mult": 2.0,
+        "Tend_mult": 0.5,
+        "offset_mult": 0.5
+      },
+      "mean_success": 0.43066666666666664,
+      "mean_functional_distance": 1.5463908095652334,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 19,
+      "multipliers": {
+        "T0_mult": 2.0,
+        "Tend_mult": 0.5,
+        "offset_mult": 1.0
+      },
+      "mean_success": 0.4305833333333333,
+      "mean_functional_distance": 1.5461251544810524,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 20,
+      "multipliers": {
+        "T0_mult": 2.0,
+        "Tend_mult": 0.5,
+        "offset_mult": 2.0
+      },
+      "mean_success": 0.43225,
+      "mean_functional_distance": 1.5456056681652723,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 21,
+      "multipliers": {
+        "T0_mult": 2.0,
+        "Tend_mult": 1.0,
+        "offset_mult": 0.5
+      },
+      "mean_success": 0.41025,
+      "mean_functional_distance": 1.6047071056069535,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 22,
+      "multipliers": {
+        "T0_mult": 2.0,
+        "Tend_mult": 1.0,
+        "offset_mult": 1.0
+      },
+      "mean_success": 0.40991666666666665,
+      "mean_functional_distance": 1.6044887569025261,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 23,
+      "multipliers": {
+        "T0_mult": 2.0,
+        "Tend_mult": 1.0,
+        "offset_mult": 2.0
+      },
+      "mean_success": 0.41283333333333333,
+      "mean_functional_distance": 1.6024164096489497,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 24,
+      "multipliers": {
+        "T0_mult": 2.0,
+        "Tend_mult": 2.0,
+        "offset_mult": 0.5
+      },
+      "mean_success": 0.35983333333333334,
+      "mean_functional_distance": 1.7325857384832373,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 25,
+      "multipliers": {
+        "T0_mult": 2.0,
+        "Tend_mult": 2.0,
+        "offset_mult": 1.0
+      },
+      "mean_success": 0.36,
+      "mean_functional_distance": 1.7324348877985583,
+      "n_runs": 12000
+    },
+    {
+      "setting_id": 26,
+      "multipliers": {
+        "T0_mult": 2.0,
+        "Tend_mult": 2.0,
+        "offset_mult": 2.0
+      },
+      "mean_success": 0.3595,
+      "mean_functional_distance": 1.7328070617792146,
+      "n_runs": 12000
+    }
+  ]
+}

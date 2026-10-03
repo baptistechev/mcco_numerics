@@ -1,0 +1,103 @@
+{
+  "inherited_from": "results1",
+  "stages": {
+    "instances": "results2",
+    "theory": "results2",
+    "tuning": "results1",
+    "e1": "results1",
+    "sweep": "results2",
+    "e2select": "results1",
+    "e2": "results1"
+  },
+  "params_changed": {
+    "E3_MAX_DRAWS": {
+      "before": 1000,
+      "here": null
+    },
+    "E3_R": {
+      "before": 5,
+      "here": 3
+    },
+    "E5_N_MAX": {
+      "before": null,
+      "here": 409600
+    },
+    "e5_budgets (derived)": {
+      "before": null,
+      "here": [
+        50,
+        100,
+        200,
+        400,
+        800,
+        1600,
+        3200,
+        6400,
+        12800,
+        25600,
+        51200,
+        102400,
+        204800,
+        409600
+      ]
+    }
+  },
+  "invocations": {
+    "results1": [
+      {
+        "timestamp": "2026-09-26T07:21:45.298387+00:00",
+        "argv": [
+          "run.py",
+          "--stage",
+          "all",
+          "--out",
+          "results",
+          "--workers",
+          "48"
+        ],
+        "stage": "all",
+        "workers": 48,
+        "blas_threads": "1",
+        "params_hash": "6248b7e8dad637ed",
+        "versions": {
+          "python": "3.11.16 (main, Sep 19 2026, 01:04:43) [GCC 14.2.0]",
+          "numpy": "2.4.6",
+          "scipy": "1.17.1",
+          "troma": "2.0",
+          "troma_file": "/usr/local/lib/python3.11/site-packages/troma/__init__.py"
+        },
+        "troma_source": {
+          "url": "https://github.com/baptistechev/TrOMA.git",
+          "vcs_info": {
+            "vcs": "git",
+            "commit_id": "57747eb74ad522d2b52ce75ccc5f9ab08c65f7d2",
+            "requested_revision": "perf/vectorized-marginals"
+          }
+        },
+        "git": {
+          "troma_lib": null,
+          "mcco_paper": {
+            "path": "/app",
+            "commit": "2ad92184e30095c286afea203ce89828d7e4a6cc",
+            "branch": "main",
+            "dirty": true
+          }
+        },
+        "hardware": {
+          "hostname": "0579ac3d5bef",
+          "platform": "Linux-6.6.114.1-microsoft-standard-WSL2-x86_64-with-glibc2.41",
+          "cpu_count": 48,
+          "processor": "",
+          "cpu_model": "Intel(R) Xeon(R) Silver 4410Y",
+          "mem_total_kb": 527558020
+        },
+        "event": "start"
+      },
+      {
+        "event": "end",
+        "stage": "all",
+        "timestamp": "2026-09-26T12:30:06.198062+00:00"
+      }
+    ]
+  }
+}
