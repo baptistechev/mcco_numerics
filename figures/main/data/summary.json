@@ -44,8 +44,7 @@
   },
   "last_invocation": {
     "only": [
-      "e2",
-      "e5"
+      "s1"
     ],
     "from_csv": true
   },

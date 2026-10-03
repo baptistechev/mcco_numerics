@@ -40,6 +40,7 @@ for _var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
 
 import argparse
 import json
+import logging
 import math
 import multiprocessing
 from functools import cached_property
@@ -69,18 +70,24 @@ E5A_YMAX = 10.0                 # top of the E5a failure axis (the bound is cut 
 E5B_SHOWN = 60                  # E5b instances drawn per sketch (uniformly, fixed seed); bins and fits use all
 E5B_SHOWN_SEED = 20261003
 E5B_POINT_ALPHA = 0.25          # opacity of the per-instance E5b points
+E5B_XLABEL = r"$n\,\Theta^2 / (2\nu^2 + \frac{2}{3}\bar{M}\Theta)$"   # predicted exponent of Eq. (6)
 S1_BOOTSTRAP_SEED = 20260928    # S1 intervals (bootstrap as E1, its own seed)
 
-# --- Style: fixed color per entity (validated categorical slots 1-3; annealing is the neutral
-# baseline), plus a marker per method so identity never relies on color alone. ---------------------
+# --- Style: one shade of blue per method, told apart by marker and line style. Computer Modern
+# text and math, as in the paper. --------------------------------------------------------------------
 METHODS = ["quadruplet", "quintuplet", "random", "annealing"]
-LABELS = {"quadruplet": "MCCO quadruplet", "quintuplet": "MCCO quintuplet", "random": "MCCO random",
-          "annealing": "Digital annealing"}
-COLORS = {"quadruplet": "#2a78d6", "quintuplet": "#eb6834", "random": "#1baf7a", "annealing": "#52514e"}
+LABELS = {"quadruplet": "MCCO Quadruplets", "quintuplet": "MCCO Quintuplets", "random": "MCCO Random",
+          "annealing": "Digital Annealing"}
+COLORS = {"quadruplet": "#2171b5", "quintuplet": "#6baed6", "random": "#9ecae1", "annealing": "#08306b"}
 MARKERS = {"quadruplet": "o", "quintuplet": "s", "random": "^", "annealing": "D"}
+LINESTYLES = {"quadruplet": "-", "quintuplet": (0, (4, 1.5)), "random": (0, (1, 1.2)),
+              "annealing": (0, (5, 1.5, 1, 1.5))}
+FAMILY_NAMES = {"L": "Local Rules", "W": "Non-local Rules"}   # rule families, as named in the figures
 TEXT, TEXT_2, RULE = "#0b0b0b", "#52514e", "#dcdbd7"
 FULL_WIDTH, HALF_WIDTH = 7.2, 3.5      # inches: Scientific Reports double and single column
-DECODERS = {"mp": ("Matching pursuit", "#2a78d6", "o"), "bp": ("Basis pursuit", "#eb6834", "s")}  # S1
+# S1 compares decoders, not methods: shades of green. label, color, marker, line style.
+DECODERS = {"mp": ("Matching Pursuit", "#74c476", "o", (0, (4, 1.5))),
+            "bp": ("Basis Pursuit", "#00441b", "s", "-")}
 
 # Files written per experiment (--only), relative to the figures directory: main/ and supplementary/,
 # each with data/ (tables, read back by --from-csv) and plot/ (PDF figures, LaTeX table).
@@ -108,8 +115,10 @@ RUN_FIELDS = ["record", "method", "experiment", "role", "family", "n_rules", "in
 
 
 def set_style() -> None:
+    logging.getLogger("fontTools").setLevel(logging.ERROR)   # the bundled cmr10 has an old timestamp
     plt.rcParams.update({
-        "font.family": "sans-serif", "font.size": 7, "axes.titlesize": 7, "axes.labelsize": 7,
+        "font.family": "serif", "font.serif": ["cmr10"], "mathtext.fontset": "cm",
+        "axes.formatter.use_mathtext": True, "font.size": 7, "axes.titlesize": 7, "axes.labelsize": 7,
         "xtick.labelsize": 6.5, "ytick.labelsize": 6.5, "legend.fontsize": 6.5,
         "text.color": TEXT, "axes.labelcolor": TEXT, "axes.titlecolor": TEXT,
         "xtick.color": TEXT_2, "ytick.color": TEXT_2, "axes.edgecolor": TEXT_2,
@@ -137,14 +146,19 @@ def budget_axis(ax, budgets: list[int]) -> None:
 
 
 def shared_legend(fig, methods: list[str], y: float = 1.0) -> None:
-    handles = [plt.Line2D([], [], color=COLORS[m], marker=MARKERS[m], label=LABELS[m]) for m in methods]
+    handles = [method_handle(m) for m in methods]
     fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, y), ncol=len(methods),
                handlelength=1.8, columnspacing=1.2)
 
 
 def band(ax, x, y, low, high, m: str, **kwargs) -> None:
     ax.fill_between(x, low, high, color=COLORS[m], alpha=0.15, linewidth=0)
-    ax.plot(x, y, color=COLORS[m], marker=MARKERS[m], markeredgewidth=0, **kwargs)
+    ax.plot(x, y, color=COLORS[m], marker=MARKERS[m], linestyle=LINESTYLES[m], markeredgewidth=0, **kwargs)
+
+
+def method_handle(m: str) -> plt.Line2D:
+    """Legend entry of a method: its color, marker and line style."""
+    return plt.Line2D([], [], color=COLORS[m], marker=MARKERS[m], linestyle=LINESTYLES[m], label=LABELS[m])
 
 
 # =============================================================================
@@ -348,12 +362,11 @@ def fig_e1_grid(res: Results, table: pd.DataFrame, value: str, path: Path) -> No
             if value == "success":
                 ax.set_ylim(-0.02, 1.02)
             if i == 0:
-                ax.set_title(f"|R| = {R}")
+                ax.set_title(f"$|R| = {R}$")
             if j == 0:
-                ax.set_ylabel(f"Family {family}\n" + ("success rate" if value == "success"
-                                                      else "distance to optimum (σ_f)"))
-            if i == len(families) - 1:
-                ax.set_xlabel("queries n")
+                ax.set_ylabel(f"{FAMILY_NAMES.get(family, family)}\n" + ("Success Rate" if value == "success"
+                                                                       else r"Distance to Optimum ($\sigma_f$)"))
+    fig.supxlabel("Queries $n$", fontsize=7, y=0.0)
     shared_legend(fig, methods)
     fig.savefig(path)
     plt.close(fig)
@@ -400,12 +413,11 @@ def fig_e2(res: Results, table: pd.DataFrame, path: Path) -> None:
         ax.axvline(q, color=TEXT_2, linewidth=0.6, linestyle=(0, (3, 2)))
         ax.set_ylim(-0.02, 1.05)
         ax.set_xlim(-2, 102)
-        n = res.e2_choice[family]["budget"]
-        ax.set_title(f"Family {family}: {key.split('/', 1)[1]}, n = {budget_label(n)}")
-    axes[0, 0].set_ylabel("success probability")
-    fig.supxlabel(f"threshold percentile (% of the 2$^{{{res.params.N}}}$ strings)", fontsize=7, y=-0.06)
-    handles = [plt.Line2D([], [], color=COLORS[m], marker=MARKERS[m], label=LABELS[m]) for m in methods]
-    handles.append(plt.Line2D([], [], color=TEXT_2, linewidth=0.6, linestyle=(0, (3, 2)), label=f"Q = {q:g}"))
+        ax.set_title(FAMILY_NAMES.get(family, family))     # instance and budget go in the caption
+    axes[0, 0].set_ylabel("Success Probability")
+    fig.supxlabel("Threshold Percentile (%)", fontsize=7, y=-0.06)
+    handles = [method_handle(m) for m in methods]
+    handles.append(plt.Line2D([], [], color=TEXT_2, linewidth=0.6, linestyle=(0, (3, 2)), label=f"Q = {q:g} %"))
     fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=len(handles))
     fig.savefig(path)
     plt.close(fig)
@@ -435,7 +447,7 @@ def fig_e3(res: Results, table: pd.DataFrame, path: Path) -> None:
     inst = res.instance(key)
     fig, axes = plt.subplots(1, 2, figsize=(FULL_WIDTH * 0.62, 2.0), sharex=True, squeeze=False,
                              gridspec_kw={"wspace": 0.4})
-    names = {"quadruplet": " (matched)", "quintuplet": " (mismatched)"}
+    names = {"quadruplet": " (Matched)", "quintuplet": " (Mismatched)"}
     methods = methods_present(table.sketch)
     for m in methods:
         d = table[table.sketch == m].sort_values("n")
@@ -443,14 +455,14 @@ def fig_e3(res: Results, table: pd.DataFrame, path: Path) -> None:
         band(axes[0, 1], d.n, d.distance_median, d.distance_q25, d.distance_q75, m)
     for ax in axes[0]:
         budget_axis(ax, res.budgets)
-        ax.set_xlabel("queries n")
+    fig.supxlabel("Queries $n$", fontsize=7, y=-0.08)
     axes[0, 0].set_ylim(-0.02, 1.02)
-    axes[0, 0].set_ylabel("success probability")
-    axes[0, 1].set_ylabel("distance to optimum (σ_f)")
-    axes[0, 0].set_title("(a) success")
-    axes[0, 1].set_title("(b) distance to optimum")
-    fig.suptitle(f"E3: {int(inst.n_rules)} rules of length 4 ({key}, {int(inst.n_maximizers)} maximizer"
-                 f"{'s' if inst.n_maximizers > 1 else ''})", fontsize=7, y=1.16)
+    axes[0, 0].set_ylabel("Success Probability")
+    axes[0, 1].set_ylabel(r"Distance to Optimum ($\sigma_f$)")
+    axes[0, 0].set_title("(a) Success")
+    axes[0, 1].set_title("(b) Distance to Optimum")
+    # The instance and its number of maximizers go in the caption.
+    fig.suptitle(f"{int(inst.n_rules)} rules of length 4", fontsize=7, y=1.16)
     fig.legend(loc="lower center", bbox_to_anchor=(0.5, 0.99), ncol=len(methods))
     fig.savefig(path)
     plt.close(fig)
@@ -520,23 +532,28 @@ def fig_e5(res: Results, a: pd.DataFrame, b: pd.DataFrame, path: Path) -> dict:
             if d.empty:
                 continue
             zero = d.rate == 0
-            ax.plot(d.n[~zero], d.rate[~zero], color=COLORS[m], marker=MARKERS[m], markeredgewidth=0)
+            ax.plot(d.n[~zero], d.rate[~zero], color=COLORS[m], marker=MARKERS[m], linestyle=LINESTYLES[m],
+                    markeredgewidth=0)
             ax.plot(d.n[zero], np.full(zero.sum(), floor), linestyle="none", color=COLORS[m], marker=MARKERS[m],
                     markerfacecolor="white", markeredgewidth=0.8)
             if d.bound_eq6.notna().any():
-                ax.plot(d.n, d.bound_eq6, color=COLORS[m], linewidth=0.8, linestyle=(0, (4, 2)))
+                ax.plot(d.n, d.bound_eq6, color=COLORS[m], linewidth=0.8, linestyle=(0, (1, 1)))
                 n7 = d.n_eq7.iloc[0]
                 notes[f"{key}/{m}"] = {"n_eq7": n7}
                 if n7 <= budgets_a[-1]:
-                    ax.axvline(n7, color=COLORS[m], linewidth=0.6, linestyle=(0, (1, 2)))
+                    ax.axvline(n7, color=COLORS[m], linewidth=0.6, linestyle="-")
+                    # Its value, along the line from the x axis (in the strip below the markers).
+                    ax.text(n7 / 1.03, 0.015, f"{n7 / 1000:.0f}k", transform=ax.get_xaxis_transform(),
+                            rotation=90, ha="right", va="bottom", fontsize=6, color=COLORS[m])
         ax.axhline(1.0, color=TEXT_2, linewidth=0.5)
         budget_axis(ax, budgets_a)
         ax.set_yscale("log")
-        ax.set_ylim(floor / 2, E5A_YMAX)
-        ax.set_title(f"(a) {key}")
-        ax.set_xlabel("queries n")
+        ax.set_ylim(floor / 10, E5A_YMAX)              # room for the Eq. (7) values below the markers
+        family = role[len("e5_"):]
+        ax.set_title(f"(a) {FAMILY_NAMES.get(family, family)}")   # instance in the caption
+        ax.set_xlabel(" ")                                         # room for the row label
     if roles:
-        axes[0, 0].set_ylabel("P(Problem II fails)")
+        axes[0, 0].set_ylabel("P(Problem II Fails)")
     else:
         print("[plot] no E5a sweep in this directory: panel (a) left empty", flush=True)
     for ax in axes[0, len(roles):]:
@@ -572,7 +589,8 @@ def fig_e5(res: Results, a: pd.DataFrame, b: pd.DataFrame, path: Path) -> dict:
                 if len(bx) >= 2:
                     slope, intercept = np.polyfit(np.log10(bx), by, 1)
                     xs = np.logspace(np.log10(bx.min()), np.log10(bx.max()), 50)
-                    ax.plot(xs, intercept + slope * np.log10(xs), color=COLORS[m], linewidth=1.0)
+                    ax.plot(xs, intercept + slope * np.log10(xs), color=COLORS[m], linestyle=LINESTYLES[m],
+                            linewidth=1.0)
                     fit = {"slope_per_decade": float(slope), "intercept": float(intercept), "bins": int(len(bx))}
             rho = spearmanr(x, y).statistic if len(x) > 2 else math.nan
             notes[f"n={n}/{m}"] = {"instances_with_exponent": int(len(x)), "spearman_rho": float(rho),
@@ -581,20 +599,28 @@ def fig_e5(res: Results, a: pd.DataFrame, b: pd.DataFrame, path: Path) -> dict:
                                    "instances_shown": int(len(s)), "binned_mean_fit": fit}
         ax.set_xscale("log")
         ax.set_ylim(-0.03, 1.03)
-        ax.set_xlabel("predicted exponent  n Θ²/(2ν² + ⅔M̄Θ)")
-        ax.set_title(f"(b) E1 instances, n = {budget_label(n)}")
-    axes[1, 0].set_ylabel("P(Problem II succeeds)")
+        ax.set_xlabel(" ")                                         # room for the row label
+        ax.set_title(f"(b) $n$ = {budget_label(n)}")
+    axes[1, 0].set_ylabel("P(Problem II Succeeds)")
     for ax in axes[1, len(budgets_b):]:
         ax.set_visible(False)
-    handles = [plt.Line2D([], [], color=COLORS[m], marker=MARKERS[m], label=LABELS[m]) for m in methods]
-    handles += [plt.Line2D([], [], color=TEXT_2, linewidth=0.8, linestyle=(0, (4, 2)), label="bound, Eq. (6)"),
+    handles = [method_handle(m) for m in methods]
+    handles += [plt.Line2D([], [], color=TEXT_2, linewidth=0.8, linestyle=(0, (1, 1)), label="Bound, Eq. (6)"),
+                plt.Line2D([], [], color=TEXT_2, linewidth=0.6, label="Sample Size, Eq. (7)"),
                 plt.Line2D([], [], color=TEXT_2, marker="o", linestyle="none", markerfacecolor="white",
-                           label=f"no failure in {J} runs"),
+                           label=f"No Failure in {J} Runs"),
                 plt.Line2D([], [], color=TEXT_2, marker="o", linestyle="none", markersize=3.6,
-                           markeredgecolor="white", markeredgewidth=0.6, label="binned mean"),
-                plt.Line2D([], [], color=TEXT_2, linewidth=1.0, label="linear fit in log exponent")]
+                           markeredgecolor="white", markeredgewidth=0.6, label="Binned Mean"),
+                plt.Line2D([], [], color=TEXT_2, linewidth=1.0, label="Linear Fit")]
     fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=min(len(handles), 4))
     fig.tight_layout(h_pad=1.2)
+    # One x label per row, centred under its visible panels.
+    for row, label in ((0, "Queries $n$"), (1, E5B_XLABEL)):
+        shown_axes = [ax for ax in axes[row] if ax.get_visible()]
+        if shown_axes:
+            left, right = shown_axes[0].get_position().x0, shown_axes[-1].get_position().x1
+            fig.text((left + right) / 2, shown_axes[0].get_position().y0 - 0.075, label,
+                     ha="center", va="center", fontsize=7)
     fig.savefig(path)
     plt.close(fig)
     return notes
@@ -683,23 +709,21 @@ def fig_s1(table: pd.DataFrame, families: list[str], path: Path) -> None:
     for i, family in enumerate(families):
         for j, m in enumerate(sketches):
             ax = axes[i, j]
-            for decoder, (label, color, marker) in DECODERS.items():
+            for decoder, (label, color, marker, line) in DECODERS.items():
                 d = table[(table.family == family) & (table.sketch == m) & (table.decoder == decoder)].sort_values("n")
                 if d.empty:
                     continue
                 ax.fill_between(d.n, d.ci_low, d.ci_high, color=color, alpha=0.15, linewidth=0)
-                ax.plot(d.n, d.success, color=color, marker=marker, markeredgewidth=0)
+                ax.plot(d.n, d.success, color=color, marker=marker, linestyle=line, markeredgewidth=0)
                 budget_axis(ax, sorted(d.n.unique()))
             ax.set_ylim(-0.02, 1.02)
             if i == 0:
-                instances = table[(table.sketch == m)].instances.max()
-                ax.set_title(f"{LABELS[m]} ({instances} inst. per family)")
+                ax.set_title(LABELS[m])                   # instances per family: in the caption
             if j == 0:
-                ax.set_ylabel(f"Family {family}\nsuccess rate")
-            if i == len(families) - 1:
-                ax.set_xlabel("queries n")
-    handles = [plt.Line2D([], [], color=c, marker=mk, label=f"{label} (5 candidates)")
-               for label, c, mk in DECODERS.values()]
+                ax.set_ylabel(f"{FAMILY_NAMES.get(family, family)}\nSuccess Rate")
+    fig.supxlabel("Queries $n$", fontsize=7, y=0.0)
+    handles = [plt.Line2D([], [], color=c, marker=mk, linestyle=line, label=f"{label} (5 Candidates)")
+               for label, c, mk, line in DECODERS.values()]
     fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=2)
     fig.savefig(path)
     plt.close(fig)
