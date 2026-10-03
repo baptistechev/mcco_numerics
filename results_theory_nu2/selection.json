@@ -1,0 +1,23 @@
+{
+  "e3": {
+    "descriptor": {
+      "ensemble": "e3",
+      "family": "L",
+      "n_rules": 3,
+      "instance_id": 0,
+      "N": 20,
+      "rule_lengths": [
+        4
+      ],
+      "seed_identifiers": [
+        "e3_instance",
+        20,
+        0,
+        3,
+        0
+      ],
+      "instance_seed": 16674575502949278456,
+      "key": "e3/L/R3/0"
+    }
+  }
+}
