@@ -10,7 +10,8 @@ What is copied, per stage not rerun:
 - its committed units (``progress.inherited.000.jsonl``);
 - its JSON files (e2select: e2_budget_choice.json) and its key of selection.json (instances: e3,
   sweep: e5, e2select: e2).
-Stages that no longer exist (the digital-annealing ``tuning`` of results1-5) are not copied.
+Directories of the older code (results1-5) had a ``tuning`` stage, not copied (nor its instances), and their
+annealing runs inside the ``e1/...`` units: those count as stage ``da`` (from the source of e1).
 ``sources.json`` names the directory each stage comes from, the params that changed since the
 previous directory, and the invocations of every source directory.
 
@@ -28,7 +29,7 @@ from .records import RecordStore
 from .stages import STAGES, SUPPLEMENTARY_STAGES
 
 MAIN_STAGES = [s for s in STAGES if s not in SUPPLEMENTARY_STAGES]
-STAGE_OF_UNIT = {"instances": "instances", "theory": "theory", "e1": "e1", "sweep": "sweep",
+STAGE_OF_UNIT = {"instances": "instances", "theory": "theory", "e1": "e1", "da": "da", "sweep": "sweep",
                  "theory_e2": "e2", "e2": "e2", "s1": "s1"}
 RECORD_FILES = ["instances.jsonl", "theory.jsonl", "runs.jsonl"]
 JSON_FILES = {"e2select": ["e2_budget_choice.json"]}
@@ -36,9 +37,18 @@ SELECTION_KEYS = {"instances": "e3", "sweep": "e5", "e2select": "e2"}
 SOURCES = "sources.json"
 
 
-def stage_of(unit: str) -> str | None:
-    """Stage of a unit key; None for a stage that no longer exists (e.g. ``tuning/...``)."""
-    return STAGE_OF_UNIT.get(unit.split("/", 1)[0])
+def stage_of(unit: str, method: str | None = None) -> str | None:
+    """Stage of a record from its unit key and method; None for a stage that no longer exists
+    (``tuning/...`` and the tuning instances ``instances/tuning/...``). Annealing runs (method "da")
+    in ``e1/...`` units come from the older code."""
+    if unit.startswith("instances/tuning/"):
+        return None
+    stage = STAGE_OF_UNIT.get(unit.split("/", 1)[0])
+    return "da" if stage == "e1" and method == "da" else stage
+
+
+def _method(line: bytes) -> str | None:
+    return "da" if b'"method": "da"' in line else None
 
 
 def _unit(line: bytes) -> str | None:
@@ -70,8 +80,12 @@ def run_stages(store: RecordStore) -> list[str]:
 def stage_sources(store: RecordStore) -> dict[str, str]:
     """Stage -> name of the results directory its records come from."""
     if store.path(SOURCES).exists():
-        return store.read_json(SOURCES)["stages"]
-    return {s: store.dir.name for s in run_stages(store)}
+        stages = store.read_json(SOURCES)["stages"]
+    else:
+        stages = {s: store.dir.name for s in run_stages(store)}
+    if "tuning" in stages and "e1" in stages and "da" not in stages:
+        stages["da"] = stages["e1"]          # older code: the annealing runs were part of e1
+    return stages
 
 
 def inherited_stages(store: RecordStore) -> set[str]:
@@ -118,7 +132,8 @@ def inherit(directory: str | Path, previous: str | Path, rerun: list[str]) -> di
         for part in prev.parts(name):
             with open(part, "rb") as fh:
                 lines = fh.readlines()
-            keep = [line for line in lines if line.strip() and _unit(line) in units]
+            keep = [line for line in lines if line.strip() and _unit(line) in units
+                    and stage_of(_unit(line), _method(line)) in kept]
             if not keep:
                 continue
             target = out.path(f"{stem}.inherited.{k:03d}.{ext}")

@@ -281,26 +281,57 @@ def test_inherit_from_previous_directory(tiny, completed, tmp_path):
     plot.make_figures(out.dir, tmp_path / "figs", only=["e2", "e5"])
 
 
-def test_inherit_drops_removed_tuning_stage(tiny, completed, tmp_path):
-    """A directory of the older code (results1-5: a digital-annealing ``tuning`` stage) is inherited
-    without its tuning units, records and JSON files."""
+def _older_code_copy(completed, target):
+    """Copy of an output directory as written by the older code (results1-5): a ``tuning`` stage
+    (units, records, JSON files) and the annealing runs inside the ``e1/...`` units."""
     import shutil
 
+    shutil.copytree(completed.dir, target)
+    (target / "sources.json").write_text(json.dumps(
+        {"stages": {"tuning": target.name, **{s: target.name for s in STAGES if s != "da"}}}))
+    progress = [json.loads(line) for line in completed.lines("progress.jsonl")]
+    progress = [p for p in progress if not p["unit"].startswith("da/")]
+    progress += [{"unit": "instances/tuning/L/R1/0", "stage": "instances"}, {"unit": "tuning/tuning/L/R1/0", "stage": "tuning"}]
+    (target / "progress.jsonl").write_text("".join(json.dumps(p) + "\n" for p in progress))
+    with open(target / "runs.jsonl", "w") as fh:
+        for r in _runs(completed):
+            if r["method"] == "da":
+                r["unit"] = "e1/" + r["unit"].removeprefix("da/")
+            fh.write(json.dumps(r) + "\n")
+    with open(target / "instances.jsonl", "a") as fh:
+        fh.write(json.dumps({"unit": "instances/tuning/L/R1/0", "ensemble": "tuning"}) + "\n")
+    (target / "tuning_runs.jsonl").write_text(json.dumps({"unit": "tuning/tuning/L/R1/0", "method": "da"}) + "\n")
+    for name in ("da_delta.json", "tuning_choice.json"):
+        (target / name).write_text("{}")
+    return target
+
+
+def test_inherit_from_older_code(tiny, completed, tmp_path):
+    """From a directory of the older code: the tuning stage is dropped; its annealing runs (in the e1
+    units) are the da stage, copied with e1 or replaced by --stage da, the MCCO runs kept."""
     from mcco_sim.inherit import inherit
 
-    old = tmp_path / "results5"
-    shutil.copytree(completed.dir, old)
-    (old / "sources.json").write_text(json.dumps({"stages": {"tuning": "results5", **{s: "results5" for s in STAGES}}}))
-    with open(old / "progress.jsonl", "a") as fh:
-        fh.write(json.dumps({"unit": "tuning/tuning/L/R1/0", "stage": "tuning"}) + "\n")
-    (old / "tuning_runs.jsonl").write_text(json.dumps({"unit": "tuning/tuning/L/R1/0", "method": "da"}) + "\n")
-    for name in ("da_delta.json", "tuning_choice.json"):
-        (old / name).write_text("{}")
-    out = Output(tmp_path / "results6", tiny)
-    sources = inherit(out.dir, old, ["e1"])
-    assert list(sources["stages"]) == list(STAGES)
-    assert out.done_units() == {u for u in completed.done_units() if not u.startswith("e1/")}
-    assert not list(out.dir.glob("tuning_runs*")) and not out.path("da_delta.json").exists()
+    old = _older_code_copy(completed, tmp_path / "results5")
+    mcco = sorted(json.dumps(r, sort_keys=True) for r in _runs(completed) if r["method"] == "mcco")
+
+    copy = Output(tmp_path / "results6", tiny)
+    sources = inherit(copy.dir, old, [])
+    assert list(sources["stages"]) == list(STAGES) and sources["stages"]["da"] == "results5"
+    assert _count(copy, "runs.jsonl") == _count(completed, "runs.jsonl")
+    assert not list(copy.dir.glob("tuning_runs*")) and not copy.path("da_delta.json").exists()
+    assert copy.done_units() == {u for u in completed.done_units() if not u.startswith("da/")}
+    assert _count(copy, "instances.jsonl") == _count(completed, "instances.jsonl")
+
+    out = Output(tmp_path / "results7", tiny)
+    sources = inherit(out.dir, old, ["da"])
+    assert sources["stages"]["da"] == "results7" and sources["stages"]["e1"] == "results5"
+    assert not any(r["method"] == "da" for r in _runs(out))
+    assert sorted(json.dumps(r, sort_keys=True) for r in _runs(out) if r["method"] == "mcco") == mcco
+    STAGES["da"](out, workers=1)
+    da = sorted(json.dumps({k: v for k, v in r.items() if k != "time"}, sort_keys=True)
+                for r in _runs(out) if r["method"] == "da")
+    assert da == sorted(json.dumps({k: v for k, v in r.items() if k != "time"}, sort_keys=True)
+                        for r in _runs(completed) if r["method"] == "da")
 
 
 def test_s1_basis_pursuit(tiny, completed):

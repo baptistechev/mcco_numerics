@@ -1,4 +1,4 @@
-"""Stages of the simulation, in order: instances, theory, e1, sweep, e2select, e2 (and s1)."""
+"""Stages of the simulation, in order: instances, theory, e1, da, sweep, e2select, e2 (and s1)."""
 
 from __future__ import annotations
 
@@ -40,9 +40,17 @@ def stage_theory(out: Output, workers: int) -> None:
 
 
 def stage_e1(out: Output, workers: int) -> None:
+    """MCCO on the E1 instances."""
     units = [{"key": f"e1/{d['key']}", "payload": {"descriptor": d}}
              for d in build_instance_descriptors(out.params)["e1"]]
     execute(out, "e1", units, workers)
+
+
+def stage_da(out: Output, workers: int) -> None:
+    """Digital annealing on the E1 instances (records with experiment "e1", method "da")."""
+    units = [{"key": f"da/{d['key']}", "payload": {"descriptor": d}}
+             for d in build_instance_descriptors(out.params)["e1"]]
+    execute(out, "da", units, workers)
 
 
 def _blocks(n: int, size: int) -> list[list[int]]:
@@ -156,6 +164,7 @@ STAGES = {
     "instances": stage_instances,
     "theory": stage_theory,
     "e1": stage_e1,
+    "da": stage_da,
     "sweep": stage_sweep,
     "e2select": stage_e2select,
     "e2": stage_e2,

@@ -51,7 +51,7 @@ def unit_theory(params: Params, payload: dict) -> dict:
 
 
 def unit_e1(params: Params, payload: dict) -> dict:
-    """E1: MCCO (adaptive threshold, Problem II also at the exact threshold) and annealing."""
+    """E1: MCCO (adaptive threshold, Problem II also at the exact threshold)."""
     inst = Instance(params, payload["descriptor"])
     sketches = SketchSet(params, inst, names=sketch_names(params, payload["descriptor"], "e1"))
     records = []
@@ -61,8 +61,13 @@ def unit_e1(params: Params, payload: dict) -> dict:
                                [{"mode": "adaptive"}], problem2_only=fixed):
             rec["experiment"] = "e1"
             records.append(rec)
-    records += da_runs(params, inst, range(params.J), params.budgets, "e1")
     return {"runs": records}
+
+
+def unit_da(params: Params, payload: dict) -> dict:
+    """E1: digital annealing (fixed setting), J runs per budget."""
+    inst = Instance(params, payload["descriptor"])
+    return {"runs": da_runs(params, inst, range(params.J), params.budgets, "e1")}
 
 
 def unit_sweep(params: Params, payload: dict) -> dict:
@@ -155,6 +160,7 @@ UNIT_FUNCTIONS = {
     "instances": unit_instance,
     "theory": unit_theory,
     "e1": unit_e1,
+    "da": unit_da,
     "sweep": unit_sweep,
     "e2": unit_e2,
     "s1": unit_s1,

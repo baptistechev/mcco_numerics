@@ -60,21 +60,24 @@ def _old_format(store: RecordStore) -> bool:
     return False
 
 
-def _unit_hashes(store: RecordStore, name: str, stages: set[str], mp_only: bool) -> dict[str, str]:
+def _unit_hashes(store: RecordStore, name: str, stages: set[str], mp_only: bool) -> dict[tuple[str, str], str]:
+    """(stage, unit) -> hash of its records (a unit of the older code holds both e1 and da records)."""
     done = store.done_units()
     records = defaultdict(list)
     for line in store.lines(name):
         rec = json.loads(line)
         unit = rec.get("unit")
-        if unit in done and stage_of(unit) in stages:
-            records[unit].append(json.dumps(_normal(rec, mp_only), sort_keys=True))
+        stage = stage_of(unit, rec.get("method")) if unit in done else None
+        if stage in stages:
+            records[(stage, unit)].append(json.dumps(_normal(rec, mp_only), sort_keys=True))
     return {u: hashlib.sha256("\n".join(sorted(r)).encode()).hexdigest() for u, r in records.items()}
 
 
-def _first_difference(a: RecordStore, b: RecordStore, name: str, unit: str, mp_only: bool) -> str:
+def _first_difference(a: RecordStore, b: RecordStore, name: str, stage: str, unit: str, mp_only: bool) -> str:
     def recs(store):
-        return sorted((_normal(json.loads(line), mp_only) for line in store.lines(name)
-                       if f'"unit": "{unit}"' in line), key=lambda r: json.dumps(r, sort_keys=True))
+        rows = (json.loads(line) for line in store.lines(name) if f'"unit": "{unit}"' in line)
+        return sorted((_normal(r, mp_only) for r in rows if stage_of(unit, r.get("method")) == stage),
+                      key=lambda r: json.dumps(r, sort_keys=True))
     ra, rb = recs(a), recs(b)
     if len(ra) != len(rb):
         return f"{len(ra)} vs {len(rb)} records"
@@ -109,20 +112,21 @@ def compare(original: str | Path, rerun: str | Path, stages: list[str] | None = 
         report["stages"][stage] = {"units": 0, "identical": 0, "different": 0, "missing": 0, "extra": 0, "examples": []}
     for name in RECORD_FILES:
         ha, hb = _unit_hashes(a, name, set(stages), mp_only), _unit_hashes(b, name, set(stages), mp_only)
-        for unit in sorted(set(ha) | set(hb)):
-            entry = report["stages"][stage_of(unit)]
+        for key in sorted(set(ha) | set(hb)):
+            stage, unit = key
+            entry = report["stages"][stage]
             entry["units"] += 1
-            if unit not in hb:
+            if key not in hb:
                 entry["missing"] += 1
-            elif unit not in ha:
+            elif key not in ha:
                 entry["extra"] += 1
-            elif ha[unit] == hb[unit]:
+            elif ha[key] == hb[key]:
                 entry["identical"] += 1
             else:
                 entry["different"] += 1
                 if len(entry["examples"]) < examples:
                     entry["examples"].append({"unit": unit, "file": name,
-                                              "difference": _first_difference(a, b, name, unit, mp_only)})
+                                              "difference": _first_difference(a, b, name, stage, unit, mp_only)})
     for stage in stages:
         for name in JSON_FILES.get(stage, []):
             report["files"][name] = _json_part(a, name) == _json_part(b, name)

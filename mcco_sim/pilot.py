@@ -116,8 +116,9 @@ def compute_estimate(params: Params, timings: dict) -> dict:
     estimate = {
         "instances": n_e1 * instance_time,
         "theory": sum(e1_instances[s] * theory.get(s, 0.0) for s in sketches),
-        "e1": (n_e1 * (instance_time + J * (sum(sampling.values()) + da_sample_cost))
+        "e1": (n_e1 * (instance_time + J * sum(sampling.values()))
                + sum(e1_instances[s] * (setup[s] + J * per_sample[s]) for s in sketches)),
+        "da": n_e1 * (instance_time + J * da_sample_cost),
         "sweep": (J1 * sum(sampling[n] + 3 * sum(decode[(s, n)] for s in single) for n in budgets)   # E3
                   + 2 * J1 * sum(scaled(sampling, n) + sum(scaled(p2_single[s], n) for s in single)
                                  for n in params.e5_budgets)

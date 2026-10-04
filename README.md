@@ -94,7 +94,8 @@ new directory is complete and the figures can be made from it alone. `run.py` pr
 |---|---|---|
 | `instances` | every instance (rules, exact spectrum, optimum), the E3 instance | all |
 | `theory` | Theorem 1 / Corollary 1 quantities per instance and sketch | E5, E3 |
-| `e1` | MCCO (every sketch) and digital annealing (one fixed setting, `DA_*` in `params.py`) on the E1 instances | E1, E4, E5b |
+| `e1` | MCCO (every sketch) on the E1 instances | E1, E4, E5b |
+| `da` | digital annealing (one fixed setting, `DA_*` in `params.py`) on the E1 instances | E1 |
 | `sweep` | 300 runs on the E3 instance and on the E5a instances (chosen from `theory`) | E3, E5a |
 | `e2select` | the two E2 instances and budget, from the E1 success curves | E2 |
 | `e2` | threshold sweep on the E2 instances | E2 |
@@ -103,7 +104,8 @@ new directory is complete and the figures can be made from it alone. `run.py` pr
 Examples:
 
 ```bash
-python run.py --stage e1 --workers 48                  # rerun E1, copy the rest
+python run.py --stage e1 --workers 48                  # rerun the E1 MCCO runs, copy the rest
+python run.py --stage da --workers 48                  # rerun the E1 annealing runs only
 python run.py --stage instances theory --workers 48    # recompute the instances and the theory
 python run.py --stage all --workers 48                 # everything except s1
 python run.py --stage s1 --workers 16                  # S1 (memory-bound: ~16 workers is best)
@@ -233,8 +235,9 @@ Each directory also holds everything it did not rerun, so `results5` is the comp
 
 results1–5 come from the older code: digital annealing was tuned per family and |R| (an energy
 scale δ from extra tuning instances, a `tuning` stage, `da_delta.json`, `tuning_choice.json`). The
-current code uses one fixed setting for every ensemble, like MCCO. Copying from those directories
-drops their `tuning` stage. Reproducing them (`--reproduce`) needs the commit before this change,
+current code uses one fixed setting for every ensemble, like MCCO, in its own `da` stage. Copying
+from those directories drops their `tuning` stage, and their annealing runs (inside the `e1` units)
+count as stage `da`: `--stage da` replaces them and keeps their MCCO runs. Reproducing them (`--reproduce`) needs the commit before this change,
 because their `params.py` has the tuning names.
 Older notes and logs use the former names: `results` = results1, `results_v2` = results2,
 `results_e2` = results3, `results_s1` = results4, `results_theory_nu2` = results5.

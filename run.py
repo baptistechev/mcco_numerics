@@ -18,7 +18,8 @@ first command of a new directory: a stage inherited there cannot be run there af
 Stages, run in this order by ``--stage all``:
     instances  every instance, exact ground truth, E2/E3 instance selection
     theory     per-instance checks of Theorem 1 / Corollary 1 (section 4)
-    e1         MCCO (all sketches) and digital annealing (fixed setting) on the E1 ensembles
+    e1         MCCO (all sketches) on the E1 ensembles
+    da         digital annealing (fixed setting) on the E1 ensembles
     sweep      J_SINGLE runs on the E3 instance (all budgets) and the E5a instances
                (budgets up to E5_N_MAX, Problem II only); selects the E5a instances from theory
     e2select   E2 instances and budget with typical E1 success curves (E1 runs of this directory,
