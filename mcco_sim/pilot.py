@@ -9,7 +9,7 @@ import time
 
 import numpy as np
 
-from .annealing import da_delta_values, da_grid, da_runs
+from .annealing import da_runs
 from .checks import run_all
 from .instances import Instance, build_instance_descriptors
 from .mcco import mcco_sample
@@ -43,8 +43,6 @@ def pilot(out: Output) -> None:
         sketches = SketchSet(params, inst)       # every sketch, so each one is timed
         for name, seconds in sketches.setup_time.items():
             timings["sketch_setup"].setdefault(name, []).append(seconds)
-        values, _ = da_delta_values(params, inst)
-        delta = float(np.median(values))
         for sample_id in range(params.PILOT_SAMPLES):
             recs = mcco_sample(params, inst, sketches, sample_id, params.budgets, [{"mode": "adaptive"}],
                                problem2_only=[{"mode": "fixed", "label": "q_exact", "t": inst.q_exact}])
@@ -52,9 +50,7 @@ def pilot(out: Output) -> None:
                 r["unit"] = "pilot"
             out.append("runs.jsonl", recs)
             timings["mcco"] += recs
-        default = {"T0_mult": 1.0, "Tend_mult": 1.0, "offset_mult": 1.0}
-        da = da_runs(params, inst, delta, [(da_grid(params).index(default), default)],
-                     range(params.PILOT_SAMPLES), params.budgets, "pilot")
+        da = da_runs(params, inst, range(params.PILOT_SAMPLES), params.budgets, "pilot")
         for r in da:
             r["unit"] = "pilot"
         out.append("runs.jsonl", da)
@@ -100,7 +96,6 @@ def compute_estimate(params: Params, timings: dict) -> dict:
 
     n_ensembles = len(params.FAMILIES) * len(params.R_VALUES)
     n_e1 = n_ensembles * params.I
-    n_tuning = n_ensembles * params.I_TUNING
     e1_instances = {s: n_ensembles * (params.I if spec["e1_instances"] is None else min(spec["e1_instances"], params.I))
                     for s, spec in params.SKETCHES.items()}
     single = [s for s, spec in params.SKETCHES.items() if spec["single_instance"]]
@@ -119,9 +114,8 @@ def compute_estimate(params: Params, timings: dict) -> dict:
         return per_budget[n] if n in per_budget else per_budget[budgets[-1]] * n / budgets[-1]
 
     estimate = {
-        "instances": (n_e1 + n_tuning) * instance_time,
+        "instances": n_e1 * instance_time,
         "theory": sum(e1_instances[s] * theory.get(s, 0.0) for s in sketches),
-        "tuning": n_tuning * J * len(da_grid(params)) * da_sample_cost,
         "e1": (n_e1 * (instance_time + J * (sum(sampling.values()) + da_sample_cost))
                + sum(e1_instances[s] * (setup[s] + J * per_sample[s]) for s in sketches)),
         "sweep": (J1 * sum(sampling[n] + 3 * sum(decode[(s, n)] for s in single) for n in budgets)   # E3

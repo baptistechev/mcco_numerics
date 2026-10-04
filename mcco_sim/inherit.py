@@ -8,8 +8,9 @@ What is copied, per stage not rerun:
 - the records of its units (``<name>.inherited.NNN.jsonl``, read with the directory's own parts;
   a part whose lines are all kept is copied byte for byte, so git stores it once);
 - its committed units (``progress.inherited.000.jsonl``);
-- its JSON files (tuning: da_delta.json, tuning_choice.json; e2select: e2_budget_choice.json) and
-  its key of selection.json (instances: e3, sweep: e5, e2select: e2).
+- its JSON files (e2select: e2_budget_choice.json) and its key of selection.json (instances: e3,
+  sweep: e5, e2select: e2).
+Stages that no longer exist (the digital-annealing ``tuning`` of results1-5) are not copied.
 ``sources.json`` names the directory each stage comes from, the params that changed since the
 previous directory, and the invocations of every source directory.
 
@@ -27,16 +28,17 @@ from .records import RecordStore
 from .stages import STAGES, SUPPLEMENTARY_STAGES
 
 MAIN_STAGES = [s for s in STAGES if s not in SUPPLEMENTARY_STAGES]
-STAGE_OF_UNIT = {"instances": "instances", "theory": "theory", "tuning": "tuning", "e1": "e1", "sweep": "sweep",
+STAGE_OF_UNIT = {"instances": "instances", "theory": "theory", "e1": "e1", "sweep": "sweep",
                  "theory_e2": "e2", "e2": "e2", "s1": "s1"}
-RECORD_FILES = ["instances.jsonl", "theory.jsonl", "tuning_runs.jsonl", "runs.jsonl"]
-JSON_FILES = {"tuning": ["da_delta.json", "tuning_choice.json"], "e2select": ["e2_budget_choice.json"]}
+RECORD_FILES = ["instances.jsonl", "theory.jsonl", "runs.jsonl"]
+JSON_FILES = {"e2select": ["e2_budget_choice.json"]}
 SELECTION_KEYS = {"instances": "e3", "sweep": "e5", "e2select": "e2"}
 SOURCES = "sources.json"
 
 
-def stage_of(unit: str) -> str:
-    return STAGE_OF_UNIT[unit.split("/", 1)[0]]
+def stage_of(unit: str) -> str | None:
+    """Stage of a unit key; None for a stage that no longer exists (e.g. ``tuning/...``)."""
+    return STAGE_OF_UNIT.get(unit.split("/", 1)[0])
 
 
 def _unit(line: bytes) -> str | None:
@@ -103,7 +105,7 @@ def inherit(directory: str | Path, previous: str | Path, rerun: list[str]) -> di
     out, prev = RecordStore(directory), RecordStore(previous)
     _clear(out)
     rerun = expand(rerun)
-    kept = {s: origin for s, origin in stage_sources(prev).items() if s not in rerun}
+    kept = {s: origin for s, origin in stage_sources(prev).items() if s in STAGES and s not in rerun}
 
     progress = [line for line in prev.lines("progress.jsonl")
                 if line.strip() and stage_of(json.loads(line)["unit"]) in kept]

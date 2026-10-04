@@ -14,7 +14,6 @@ FAMILIES = ("L", "W")           # L: patterns in {0,1}; W: interior symbols in {
 R_VALUES = (1, 2, 3, 4, 5)      # number of rules |R|
 RULE_LENGTHS = (4, 5, 6)        # k_r, uniform
 I = 100                         # instances per family and |R| (E1)
-I_TUNING = 10                   # tuning instances per family and |R| (seeds disjoint from E1)
 
 # --- Sampling protocol (section 3) ------------------------------------------------------------
 J = 10                          # independent runs per instance (E1)
@@ -36,11 +35,13 @@ SKETCHES = {
 }
 
 # --- Digital annealing baseline (sections 2 and 6) -------------------------------------------
-DA_DELTA_POINTS = 1000          # random x per tuning instance for the energy scale delta
-DA_T0_ACCEPTANCE = 0.5          # T0: uphill move of size delta accepted with probability 1/2
-DA_TEND_ACCEPTANCE = 0.01       # T_end: ... accepted with probability 1/100
-DA_OFFSET_INCREMENT = 0.1       # dynamic offset increment, in units of delta
-DA_TUNING_MULTIPLIERS = (0.5, 1.0, 2.0)  # tuning grid on T0, T_end and offset
+# One fixed setting for every family and |R|, as for MCCO (no per-ensemble tuning). Absolute
+# values in units of f (rewards in (0, 1]): the typical single-flip |Delta f| is about 0.5 in
+# every ensemble (0.43-0.62), so T0 accepts an uphill move of 0.25 with probability 1/2, T_end
+# one of 0.5 with probability 1/100, and the offset grows by 0.1 per rejected step.
+DA_T0 = 0.36                    # initial temperature (geometric schedule from T0 to T_end)
+DA_TEND = 0.11                  # final temperature
+DA_OFFSET_INCREMENT = 0.1       # dynamic offset increment after a step with no accepted flip
 
 # --- E2: threshold sweep -------------------------------------------------------------------------
 E2_R = 5                        # E2 instances come from the |R| = E2_R ensembles

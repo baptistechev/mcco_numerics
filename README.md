@@ -26,8 +26,7 @@ The experiments:
   and the identifiers of the draw ([`mcco_sim/seeds.py`](mcco_sim/seeds.py)). A draw gets the same
   seed whatever the number of workers or the order in which the work is done.
 - **Seeds are written in the records.** `instance_seed` in `instances.jsonl`; `sample_seed`,
-  `sketch_seed` (MCCO) and `run_seed` (annealing) in `runs.jsonl`; the annealing energy-scale seeds
-  in `da_delta.json`.
+  `sketch_seed` (MCCO) and `run_seed` (annealing) in `runs.jsonl`.
 - **Params are saved with the results.** Each results directory holds `params.json` (the resolved
   values) and a copy of `params.py`. A run refuses to write into a directory made with other params.
 - **The environment is saved too.** `invocations.jsonl` records, for every command: the command
@@ -95,8 +94,7 @@ new directory is complete and the figures can be made from it alone. `run.py` pr
 |---|---|---|
 | `instances` | every instance (rules, exact spectrum, optimum), the E3 instance | all |
 | `theory` | Theorem 1 / Corollary 1 quantities per instance and sketch | E5, E3 |
-| `tuning` | annealing energy scale and tuning grid, chosen setting | E1 (annealing) |
-| `e1` | MCCO (every sketch) and digital annealing on the E1 instances | E1, E4, E5b |
+| `e1` | MCCO (every sketch) and digital annealing (one fixed setting, `DA_*` in `params.py`) on the E1 instances | E1, E4, E5b |
 | `sweep` | 300 runs on the E3 instance and on the E5a instances (chosen from `theory`) | E3, E5a |
 | `e2select` | the two E2 instances and budget, from the E1 success curves | E2 |
 | `e2` | threshold sweep on the E2 instances | E2 |
@@ -194,7 +192,7 @@ Dockerfile, pyproject.toml
 | `sketches.py` | TrOMA sketch maps and decoders; sketch algebra for Problem II and the theory |
 | `theory.py` | Theorem 1 / Corollary 1 quantities: surrogate F, Θ_min, ν², M bounds, Eq. (6)–(7) |
 | `mcco.py` | one MCCO run: sample, threshold, sketch, matching pursuit |
-| `annealing.py` | digital-annealing baseline |
+| `annealing.py` | digital-annealing baseline (fixed T0, T_end and offset increment for every instance) |
 | `bp.py` | basis-pursuit decoder (S1) |
 | `posthoc.py` | best sampled string of a run, recomputed from its seed |
 | `stages.py`, `runner.py` | the stages, split into work units run by a process pool |
@@ -214,7 +212,6 @@ Dockerfile, pyproject.toml
 | `instances.jsonl` | one record per instance: rules, optimum, gap, maximizers, seed |
 | `theory.jsonl` | per instance, sketch and threshold: Θ_min, ν², M bounds, Eq. (6)/(7) |
 | `runs.jsonl` | one record per MCCO or annealing run (E1, sweep, E2, S1), with its seeds |
-| `tuning_runs.jsonl`, `da_delta.json`, `tuning_choice.json` | annealing tuning runs, energy scale, chosen setting |
 | `selection.json`, `e2_budget_choice.json` | E3, E5a and E2 instances; E2 budget |
 | `progress.jsonl` | finished work units (records of unfinished units are ignored) |
 | `reproduction.json` | comparison with the original (`*_repro` directories only) |
@@ -233,5 +230,11 @@ directory are named `*.inherited.NNN.jsonl`.
 | `results5` | `instances theory` (2026-10-03) | Theorem 1 with ν² instead of σ² |
 
 Each directory also holds everything it did not rerun, so `results5` is the complete, latest state.
+
+results1–5 come from the older code: digital annealing was tuned per family and |R| (an energy
+scale δ from extra tuning instances, a `tuning` stage, `da_delta.json`, `tuning_choice.json`). The
+current code uses one fixed setting for every ensemble, like MCCO. Copying from those directories
+drops their `tuning` stage. Reproducing them (`--reproduce`) needs the commit before this change,
+because their `params.py` has the tuning names.
 Older notes and logs use the former names: `results` = results1, `results_v2` = results2,
 `results_e2` = results3, `results_s1` = results4, `results_theory_nu2` = results5.

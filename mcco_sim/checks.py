@@ -116,10 +116,9 @@ def check_annealing(params: Params) -> list[dict]:
     """Annealing query budget and reproducibility from the seeds."""
     small = _small(params)
     inst = Instance(small, instance_descriptor(small, "e1", "L", 4, 1))
-    setting = [(0, {"T0_mult": 1.0, "Tend_mult": 1.0, "offset_mult": 1.0})]
     budgets = [50, 51, 100, 1000]
-    da = da_runs(small, inst, 0.1, setting, range(2), budgets, "selftest")
-    again = da_runs(small, inst, 0.1, setting, range(2), budgets, "selftest")
+    da = da_runs(small, inst, range(2), budgets, "selftest")
+    again = da_runs(small, inst, range(2), budgets, "selftest")
     return [
         _result("DA queries <= n", all(r["queries"] <= r["n"] for r in da)),
         _result("DA reproducible from recorded seeds", _strip_timing(da) == _strip_timing(again)),

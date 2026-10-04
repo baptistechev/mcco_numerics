@@ -31,9 +31,7 @@ def instance_descriptor(params: Params, ensemble: str, family: str, n_rules: int
 def build_instance_descriptors(params: Params) -> dict[str, list[dict]]:
     e1 = [instance_descriptor(params, "e1", fam, R, i)
           for fam in params.FAMILIES for R in params.R_VALUES for i in range(params.I)]
-    tuning = [instance_descriptor(params, "tuning", fam, R, i)
-              for fam in params.FAMILIES for R in params.R_VALUES for i in range(params.I_TUNING)]
-    return {"e1": e1, "tuning": tuning}
+    return {"e1": e1}
 
 
 def e3_descriptor(params: Params, draw: int) -> dict:

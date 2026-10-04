@@ -16,7 +16,7 @@ RANDOM_K = 2                                                     # random sketch
 def tiny(params):
     sketches = {name: dict(spec) for name, spec in params.SKETCHES.items()}
     sketches["random"]["e1_instances"] = RANDOM_K
-    return params.replace(N=10, I=4, I_TUNING=2, J=2, J_SINGLE=6, N_MAX=400, E5_N_MAX=800, BLOCK_SIZE=3,
+    return params.replace(N=10, I=4, J=2, J_SINGLE=6, N_MAX=400, E5_N_MAX=800, BLOCK_SIZE=3,
                           SKETCHES=sketches, S1_SKETCHES=("quintuplet", "random"), S1_INSTANCES=3, S1_J=1)
 
 
@@ -55,8 +55,15 @@ def test_record_counts(tiny, completed):
     # stage_e2 adds the grid on the E2 instances, without its t = 0 point (already in theory.jsonl)
     theory = 2 * e1_pairs + 2 * len(single) + 2 * len(single) * (len(tiny.E2_PERCENTILES) + 2)
     assert _count(completed, "theory.jsonl") == theory
-    tuning = n_ensembles * tiny.I_TUNING * 27 * tiny.J * n_budgets
-    assert _count(completed, "tuning_runs.jsonl") == tuning == 4320
+
+
+def test_da_fixed_setting(tiny, completed):
+    """Digital annealing: the same setting (params.py) on every instance, no tuning outputs."""
+    da = [r for r in _runs(completed) if r["method"] == "da"]
+    assert len(da) == 2 * 5 * tiny.I * tiny.J * len(tiny.budgets)
+    setting = {"T0": tiny.DA_T0, "Tend": tiny.DA_TEND, "offset_increment": tiny.DA_OFFSET_INCREMENT}
+    assert all(r["setting"] == setting and (r["T0"], r["Tend"]) == (tiny.DA_T0, tiny.DA_TEND) for r in da)
+    assert not any(completed.path(name).exists() for name in ("tuning_runs.jsonl", "da_delta.json", "tuning_choice.json"))
 
 
 def test_random_sketch_subset(completed):
@@ -110,7 +117,7 @@ def test_e2select_from_other_directory(tiny, completed, tmp_path):
 
 
 def test_choice_files(completed):
-    for name in ("selection.json", "da_delta.json", "tuning_choice.json", "e2_budget_choice.json"):
+    for name in ("selection.json", "e2_budget_choice.json"):
         assert completed.path(name).exists()
     choice = completed.read_json("e2_budget_choice.json")
     assert set(choice) == {"L", "W"}
@@ -272,6 +279,28 @@ def test_inherit_from_previous_directory(tiny, completed, tmp_path):
     assert out.read_json("e2_budget_choice.json") == completed.read_json("e2_budget_choice.json")
     assert not out.path("runs.jsonl").exists()                   # copies only: runs.inherited.NNN.jsonl
     plot.make_figures(out.dir, tmp_path / "figs", only=["e2", "e5"])
+
+
+def test_inherit_drops_removed_tuning_stage(tiny, completed, tmp_path):
+    """A directory of the older code (results1-5: a digital-annealing ``tuning`` stage) is inherited
+    without its tuning units, records and JSON files."""
+    import shutil
+
+    from mcco_sim.inherit import inherit
+
+    old = tmp_path / "results5"
+    shutil.copytree(completed.dir, old)
+    (old / "sources.json").write_text(json.dumps({"stages": {"tuning": "results5", **{s: "results5" for s in STAGES}}}))
+    with open(old / "progress.jsonl", "a") as fh:
+        fh.write(json.dumps({"unit": "tuning/tuning/L/R1/0", "stage": "tuning"}) + "\n")
+    (old / "tuning_runs.jsonl").write_text(json.dumps({"unit": "tuning/tuning/L/R1/0", "method": "da"}) + "\n")
+    for name in ("da_delta.json", "tuning_choice.json"):
+        (old / name).write_text("{}")
+    out = Output(tmp_path / "results6", tiny)
+    sources = inherit(out.dir, old, ["e1"])
+    assert list(sources["stages"]) == list(STAGES)
+    assert out.done_units() == {u for u in completed.done_units() if not u.startswith("e1/")}
+    assert not list(out.dir.glob("tuning_runs*")) and not out.path("da_delta.json").exists()
 
 
 def test_s1_basis_pursuit(tiny, completed):

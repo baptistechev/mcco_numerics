@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 import numpy as np
 from troma import DitString
 
-from .annealing import da_grid, da_runs
+from .annealing import da_runs
 from .bp import bp_nonneg, noise_level, spectral_norm, top_entries
 from .instances import Instance
 from .mcco import mcco_sample, sampled_budgets, threshold_sample
@@ -50,13 +50,6 @@ def unit_theory(params: Params, payload: dict) -> dict:
     return {"theory": records}
 
 
-def unit_tuning(params: Params, payload: dict) -> dict:
-    inst = Instance(params, payload["descriptor"])
-    settings = list(enumerate(da_grid(params)))
-    records = da_runs(params, inst, payload["delta"], settings, range(params.J), params.budgets, "tuning")
-    return {"tuning_runs": records}
-
-
 def unit_e1(params: Params, payload: dict) -> dict:
     """E1: MCCO (adaptive threshold, Problem II also at the exact threshold) and annealing."""
     inst = Instance(params, payload["descriptor"])
@@ -68,9 +61,7 @@ def unit_e1(params: Params, payload: dict) -> dict:
                                [{"mode": "adaptive"}], problem2_only=fixed):
             rec["experiment"] = "e1"
             records.append(rec)
-    choice = payload["da_setting"]
-    records += da_runs(params, inst, payload["delta"], [(choice["setting_id"], choice["multipliers"])],
-                       range(params.J), params.budgets, "e1")
+    records += da_runs(params, inst, range(params.J), params.budgets, "e1")
     return {"runs": records}
 
 
@@ -163,7 +154,6 @@ def unit_s1(params: Params, payload: dict) -> dict:
 UNIT_FUNCTIONS = {
     "instances": unit_instance,
     "theory": unit_theory,
-    "tuning": unit_tuning,
     "e1": unit_e1,
     "sweep": unit_sweep,
     "e2": unit_e2,
