@@ -1,20 +1,14 @@
 {
-  "results_dir": "C:\\Users\\Baptiste\\Documents\\Gdrive\\Projects\\mcco_numerics\\results\\results5",
-  "e3_e5_dir": "/app/results_v2",
-  "theory_dir": "/app/results_theory_nu2",
-  "sources": {
-    "results_dir": [
-      "E1",
-      "E4",
-      "E5b"
-    ],
-    "e2_dir": [
-      "E2"
-    ],
-    "e3_e5_dir": [
-      "E3",
-      "E5a"
-    ]
+  "results_dir": "/app/results/results6",
+  "stage_sources": {
+    "instances": "results5",
+    "theory": "results5",
+    "e1": "results1",
+    "da": "results6",
+    "sweep": "results2",
+    "e2select": "results3",
+    "e2": "results3",
+    "s1": "results4"
   },
   "estimate": {
     "E1, E3": "best of sampled strings and MP candidates",
@@ -39,6 +33,7 @@
     "W": "e1/W/R4/34"
   },
   "e3_instance": "e3/L/R3/0",
+  "s1_records": 2400,
   "e5": {
     "e1/L/R3/35/quadruplet": {
       "n_eq7": 138491.5244316955
@@ -58,19 +53,19 @@
       "instances_without_exponent": 692,
       "instances_shown": 60,
       "binned_mean_fit": {
-        "slope_per_decade": 0.09851932233620246,
-        "intercept": 0.5457997433239329,
+        "slope_per_decade": 0.09851932233620345,
+        "intercept": 0.5457997433239337,
         "bins": 6
       }
     },
     "n=800/quintuplet": {
       "instances_with_exponent": 384,
-      "spearman_rho": 0.15677719553501107,
+      "spearman_rho": 0.15676851320633703,
       "instances_without_exponent": 616,
       "instances_shown": 60,
       "binned_mean_fit": {
-        "slope_per_decade": 0.09818795486728699,
-        "intercept": 0.5163515261639441,
+        "slope_per_decade": 0.09818795486728729,
+        "intercept": 0.5163515261639418,
         "bins": 6
       }
     },
@@ -80,19 +75,19 @@
       "instances_without_exponent": 692,
       "instances_shown": 60,
       "binned_mean_fit": {
-        "slope_per_decade": 0.18939852484753553,
-        "intercept": 0.9648546516539116,
+        "slope_per_decade": 0.18939852484754177,
+        "intercept": 0.9648546516539189,
         "bins": 6
       }
     },
     "n=6400/quintuplet": {
       "instances_with_exponent": 384,
-      "spearman_rho": 0.1935627836113203,
+      "spearman_rho": 0.19355983878010574,
       "instances_without_exponent": 616,
       "instances_shown": 60,
       "binned_mean_fit": {
-        "slope_per_decade": 0.12801703672718936,
-        "intercept": 0.81905859034122,
+        "slope_per_decade": 0.1280170367272014,
+        "intercept": 0.8190585903412423,
         "bins": 6
       }
     },
@@ -102,8 +97,8 @@
       "instances_without_exponent": 692,
       "instances_shown": 60,
       "binned_mean_fit": {
-        "slope_per_decade": 0.1681547016848629,
-        "intercept": 1.009462465196981,
+        "slope_per_decade": 0.16815470168486313,
+        "intercept": 1.0094624651969808,
         "bins": 6
       }
     },
@@ -113,35 +108,27 @@
       "instances_without_exponent": 616,
       "instances_shown": 60,
       "binned_mean_fit": {
-        "slope_per_decade": 0.14875767481525015,
-        "intercept": 0.9568693114216782,
+        "slope_per_decade": 0.14875767481525004,
+        "intercept": 0.9568693114216779,
         "bins": 6
       }
     }
   },
-  "s1": {
-    "results_dir": "/app/results",
-    "s1_dir": "/app/results_s1",
-    "bootstrap": {
-      "samples": 2000,
-      "seed": 20260928
-    }
-  },
   "last_invocation": {
     "only": [
-      "e4"
+      "e1",
+      "e2",
+      "e3",
+      "e4",
+      "e5",
+      "s1"
     ],
-    "from_csv": true
+    "from_csv": false
   },
-  "made_from": {},
-  "stage_sources": {
-    "instances": "results5",
-    "theory": "results5",
-    "tuning": "results1",
-    "e1": "results1",
-    "sweep": "results2",
-    "e2select": "results3",
-    "e2": "results3",
-    "s1": "results4"
+  "made_from": {
+    "e1": "results6",
+    "e3": "results6",
+    "e5": "results6",
+    "s1": "results6"
   }
 }

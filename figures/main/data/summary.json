@@ -1,6 +1,15 @@
 {
-  "results_dir": "C:\\Users\\Baptiste\\Documents\\Gdrive\\Projects\\mcco_numerics\\results\\results5",
-  "e2_dir": "/app/results_e2",
+  "results_dir": "/app/results/results6",
+  "stage_sources": {
+    "instances": "results5",
+    "theory": "results5",
+    "e1": "results1",
+    "da": "results6",
+    "sweep": "results2",
+    "e2select": "results3",
+    "e2": "results3",
+    "s1": "results4"
+  },
   "e2_instances": {
     "L": {
       "instance": "e1/L/R5/48",
@@ -15,53 +24,29 @@
     "E1": "best of sampled strings and MP candidates",
     "E2": "MP candidates only"
   },
-  "bootstrap": {
-    "samples": 2000,
-    "seed": 20260927,
-    "levels": "instances, then runs",
-    "interval": "95% percentile"
-  },
-  "record_counts": {
-    "runs": 708000,
-    "runs_e3_e5": 38400,
-    "theory": 4204,
-    "instances": 1101
-  },
-  "sources": {
-    "results_dir": [
-      "E1",
-      "E4",
-      "E5b"
-    ],
-    "e2_dir": [
-      "E2"
-    ],
-    "e3_e5_dir": [
-      "E3",
-      "E5a"
-    ]
-  },
-  "last_invocation": {
-    "only": [
-      "e4"
-    ],
-    "from_csv": true
-  },
-  "made_from": {
-    "e4": "results5"
-  },
-  "stage_sources": {
-    "instances": "results5",
-    "theory": "results5",
-    "tuning": "results1",
-    "e1": "results1",
-    "sweep": "results2",
-    "e2select": "results3",
-    "e2": "results3",
-    "s1": "results4"
-  },
   "intervals": {
     "E1 distance": "median and quartiles",
     "E2": "Wilson 95%"
+  },
+  "record_counts": {
+    "runs": 684000,
+    "theory": 4268,
+    "instances": 1001
+  },
+  "last_invocation": {
+    "only": [
+      "e1",
+      "e2",
+      "e3",
+      "e4",
+      "e5",
+      "s1"
+    ],
+    "from_csv": false
+  },
+  "made_from": {
+    "e1": "results6",
+    "e2": "results6",
+    "e4": "results6"
   }
 }
