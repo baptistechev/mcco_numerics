@@ -263,6 +263,9 @@ def add_sample_best(res: Results, experiments: set[str], cache: Path, workers: i
     f_sample = merged.sample_best_f.to_numpy(float)
     # Ties keep the MP estimate (same value either way); the percentile rank is monotone in f.
     f_hat = np.where(np.isnan(f_mp), f_sample, np.maximum(f_mp, f_sample))
+    # sample_best_f is read back from a CSV and can differ from f_star by a rounding step, which
+    # would make an exact comparison miss the optimum: snap values within 1e-9 (relative) to f_star.
+    f_hat = np.where(np.isclose(f_hat, f_star, rtol=1e-9, atol=0.0), f_star, f_hat)
     rank = np.where(np.isnan(rank_mp), merged.sample_best_rank, np.maximum(rank_mp, merged.sample_best_rank))
     runs.loc[need, "sample_best_f"] = f_sample
     runs.loc[need, "f_x_hat"] = f_hat

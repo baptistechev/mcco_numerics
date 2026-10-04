@@ -1,5 +1,5 @@
 {
-  "results_dir": "/app/results/results6",
+  "results_dir": "/home/baptiste/Gdrive/Projects/mcco_paper/results/results6",
   "stage_sources": {
     "instances": "results5",
     "theory": "results5",
@@ -116,12 +116,7 @@
   },
   "last_invocation": {
     "only": [
-      "e1",
-      "e2",
-      "e3",
-      "e4",
-      "e5",
-      "s1"
+      "e1"
     ],
     "from_csv": false
   },
