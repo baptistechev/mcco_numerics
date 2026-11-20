@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 import numpy as np
 from troma import DitString
 
-from .annealing import da_runs
+from .annealing import annealing_runs
 from .bp import bp_nonneg, noise_level, spectral_norm, top_entries
 from .instances import Instance
 from .mcco import mcco_sample, sampled_budgets, threshold_sample
@@ -65,9 +65,9 @@ def unit_e1(params: Params, payload: dict) -> dict:
 
 
 def unit_da(params: Params, payload: dict) -> dict:
-    """E1: digital annealing (fixed setting), J runs per budget."""
+    """E1: simulated annealing (fixed setting), J runs per budget."""
     inst = Instance(params, payload["descriptor"])
-    return {"runs": da_runs(params, inst, range(params.J), params.budgets, "e1")}
+    return {"runs": annealing_runs(params, inst, range(params.J), params.budgets, "e1")}
 
 
 def unit_sweep(params: Params, payload: dict) -> dict:

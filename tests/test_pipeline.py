@@ -58,11 +58,13 @@ def test_record_counts(tiny, completed):
 
 
 def test_da_fixed_setting(tiny, completed):
-    """Digital annealing: the same setting (params.py) on every instance, no tuning outputs."""
-    da = [r for r in _runs(completed) if r["method"] == "da"]
+    """Simulated annealing: the same setting (params.py) on every instance, exactly n + MP_ITERATIONS
+    queries (the budget of MCCO, candidates included), no tuning outputs."""
+    da = [r for r in _runs(completed) if r["method"] == "sa"]
     assert len(da) == 2 * 5 * tiny.I * tiny.J * len(tiny.budgets)
-    setting = {"T0": tiny.DA_T0, "Tend": tiny.DA_TEND, "offset_increment": tiny.DA_OFFSET_INCREMENT}
-    assert all(r["setting"] == setting and (r["T0"], r["Tend"]) == (tiny.DA_T0, tiny.DA_TEND) for r in da)
+    setting = {"T0": tiny.SA_T0, "Tend": tiny.SA_TEND}
+    assert all(r["setting"] == setting and (r["T0"], r["Tend"]) == (tiny.SA_T0, tiny.SA_TEND) for r in da)
+    assert all(r["queries"] == r["budget"] == r["n"] + tiny.MP_ITERATIONS for r in da)
     assert not any(completed.path(name).exists() for name in ("tuning_runs.jsonl", "da_delta.json", "tuning_choice.json"))
 
 
@@ -295,7 +297,7 @@ def _older_code_copy(completed, target):
     (target / "progress.jsonl").write_text("".join(json.dumps(p) + "\n" for p in progress))
     with open(target / "runs.jsonl", "w") as fh:
         for r in _runs(completed):
-            if r["method"] == "da":
+            if r["method"] in ("da", "sa"):
                 r["unit"] = "e1/" + r["unit"].removeprefix("da/")
             fh.write(json.dumps(r) + "\n")
     with open(target / "instances.jsonl", "a") as fh:
@@ -325,13 +327,13 @@ def test_inherit_from_older_code(tiny, completed, tmp_path):
     out = Output(tmp_path / "results7", tiny)
     sources = inherit(out.dir, old, ["da"])
     assert sources["stages"]["da"] == "results7" and sources["stages"]["e1"] == "results5"
-    assert not any(r["method"] == "da" for r in _runs(out))
+    assert not any(r["method"] == "sa" for r in _runs(out))
     assert sorted(json.dumps(r, sort_keys=True) for r in _runs(out) if r["method"] == "mcco") == mcco
     STAGES["da"](out, workers=1)
     da = sorted(json.dumps({k: v for k, v in r.items() if k != "time"}, sort_keys=True)
-                for r in _runs(out) if r["method"] == "da")
+                for r in _runs(out) if r["method"] == "sa")
     assert da == sorted(json.dumps({k: v for k, v in r.items() if k != "time"}, sort_keys=True)
-                        for r in _runs(completed) if r["method"] == "da")
+                        for r in _runs(completed) if r["method"] == "sa")
 
 
 def test_s1_basis_pursuit(tiny, completed):

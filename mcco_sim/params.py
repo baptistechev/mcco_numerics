@@ -27,9 +27,8 @@ class Params:
     Q: float
     MP_ITERATIONS: int
     SKETCHES: dict
-    DA_T0: float
-    DA_TEND: float
-    DA_OFFSET_INCREMENT: float
+    SA_T0: float
+    SA_TEND: float
     E2_R: int
     E2_PERCENTILES: tuple
     E3_FAMILY: str
@@ -105,8 +104,8 @@ def validate(params: Params) -> Params:
             raise ValueError(f"Sketch {name}: 'e1_instances' must be None or an int >= 1.")
         if not isinstance(spec.get("single_instance"), bool):
             raise ValueError(f"Sketch {name}: 'single_instance' must be True or False.")
-    if not 0 < params.DA_TEND <= params.DA_T0 or params.DA_OFFSET_INCREMENT < 0:
-        raise ValueError("Need 0 < DA_TEND <= DA_T0 and DA_OFFSET_INCREMENT >= 0.")
+    if not 0 < params.SA_TEND <= params.SA_T0:
+        raise ValueError("Need 0 < SA_TEND <= SA_T0.")
     if not any(spec["single_instance"] for spec in params.SKETCHES.values()):
         raise ValueError("At least one sketch must have 'single_instance': True (sweep, E2).")
     unknown_s1 = set(params.S1_SKETCHES) - set(params.SKETCHES)

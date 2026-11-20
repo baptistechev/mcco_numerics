@@ -78,7 +78,7 @@ S1_BOOTSTRAP_SEED = 20260928    # S1 intervals (bootstrap as E1, its own seed)
 # text and math, as in the paper. --------------------------------------------------------------------
 METHODS = ["quadruplet", "quintuplet", "random", "annealing"]
 LABELS = {"quadruplet": "MCCO Quadruplets", "quintuplet": "MCCO Quintuplets", "random": "MCCO Random",
-          "annealing": "Digital Annealing"}
+          "annealing": "Simulated Annealing"}
 COLORS = {"quadruplet": "#2171b5", "quintuplet": "#6baed6", "random": "#9ecae1", "annealing": "#08306b"}
 MARKERS = {"quadruplet": "o", "quintuplet": "s", "random": "^", "annealing": "D"}
 LINESTYLES = {"quadruplet": "-", "quintuplet": (0, (4, 1.5)), "random": (0, (1, 1.2)),

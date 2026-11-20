@@ -8,7 +8,7 @@ from __future__ import annotations
 import numpy as np
 from troma import ConstraintSketchMap, DitString
 
-from .annealing import da_runs
+from .annealing import annealing_budget, annealing_runs
 from .instances import Instance, direct_cost, instance_descriptor
 from .mcco import mcco_sample
 from .params import Params
@@ -117,11 +117,11 @@ def check_annealing(params: Params) -> list[dict]:
     small = _small(params)
     inst = Instance(small, instance_descriptor(small, "e1", "L", 4, 1))
     budgets = [50, 51, 100, 1000]
-    da = da_runs(small, inst, range(2), budgets, "selftest")
-    again = da_runs(small, inst, range(2), budgets, "selftest")
+    da = annealing_runs(small, inst, range(2), budgets, "selftest")
+    again = annealing_runs(small, inst, range(2), budgets, "selftest")
     return [
-        _result("DA queries <= n", all(r["queries"] <= r["n"] for r in da)),
-        _result("DA reproducible from recorded seeds", _strip_timing(da) == _strip_timing(again)),
+        _result("SA queries = n + MP_ITERATIONS", all(r["queries"] == annealing_budget(small, r["n"]) for r in da)),
+        _result("SA reproducible from recorded seeds", _strip_timing(da) == _strip_timing(again)),
     ]
 
 

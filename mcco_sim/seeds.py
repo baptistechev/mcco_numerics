@@ -6,12 +6,13 @@ import numpy as np
 
 from .params import Params
 
-STREAM_ID = {                   # never renumber: ids 2 and 13 (removed DA tuning) stay unused
+STREAM_ID = {                   # never renumber: ids 2 and 13 (removed DA tuning) and 12 (digital annealing) stay unused
     "instance": 1,
     "e3_instance": 3,
     "sample": 10,
     "random_sketch": 11,
     "da_run": 12,
+    "sa_run": 14,
 }
 FAMILY_CODE = {"L": 0, "W": 1}
 ENSEMBLE_STREAM = {"e1": "instance", "e3": "e3_instance"}

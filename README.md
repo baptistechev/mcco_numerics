@@ -8,7 +8,7 @@ The experiments:
 
 | Experiment | Question | Figure |
 |---|---|---|
-| E1 | success and distance to the optimum vs the number of queries n, MCCO vs digital annealing | main + supplementary |
+| E1 | success and distance to the optimum vs the number of queries n, MCCO vs simulated annealing | main + supplementary |
 | E2 | effect of the threshold t on two typical instances | main |
 | E3 | sketch matched vs mismatched to the rule length | supplementary |
 | E4 | wall-clock cost of each stage | main (LaTeX table) |
@@ -95,7 +95,7 @@ new directory is complete and the figures can be made from it alone. `run.py` pr
 | `instances` | every instance (rules, exact spectrum, optimum), the E3 instance | all |
 | `theory` | Theorem 1 / Corollary 1 quantities per instance and sketch | E5, E3 |
 | `e1` | MCCO (every sketch) on the E1 instances | E1, E4, E5b |
-| `da` | digital annealing (one fixed setting, `DA_*` in `params.py`) on the E1 instances | E1 |
+| `da` | simulated annealing (one fixed setting, `SA_*` in `params.py`) on the E1 instances | E1 |
 | `sweep` | 300 runs on the E3 instance and on the E5a instances (chosen from `theory`) | E3, E5a |
 | `e2select` | the two E2 instances and budget, from the E1 success curves | E2 |
 | `e2` | threshold sweep on the E2 instances | E2 |
@@ -194,7 +194,7 @@ Dockerfile, pyproject.toml
 | `sketches.py` | TrOMA sketch maps and decoders; sketch algebra for Problem II and the theory |
 | `theory.py` | Theorem 1 / Corollary 1 quantities: surrogate F, Θ_min, ν², M bounds, Eq. (6)–(7) |
 | `mcco.py` | one MCCO run: sample, threshold, sketch, matching pursuit |
-| `annealing.py` | digital-annealing baseline (fixed T0, T_end and offset increment for every instance) |
+| `annealing.py` | simulated-annealing baseline (single-bit flips, one proposal per query, fixed T0 and T_end for every instance) |
 | `bp.py` | basis-pursuit decoder (S1) |
 | `posthoc.py` | best sampled string of a run, recomputed from its seed |
 | `stages.py`, `runner.py` | the stages, split into work units run by a process pool |
@@ -239,5 +239,16 @@ current code uses one fixed setting for every ensemble, like MCCO, in its own `d
 from those directories drops their `tuning` stage, and their annealing runs (inside the `e1` units)
 count as stage `da`: `--stage da` replaces them and keeps their MCCO runs. Reproducing them (`--reproduce`) needs the commit before this change,
 because their `params.py` has the tuning names.
+
+From results7 on, the baseline is single-bit-flip simulated annealing (method `sa`), replacing
+the parallel-trial digital annealing of results1-6 (method `da`). Digital annealing evaluated the N
+single flips of the current string at every step, so it spent its budget in blocks of N = 20
+queries and left up to 19 unused (41 of 50 at n = 50). Simulated annealing proposes one flip per
+query and uses exactly n + MP_ITERATIONS queries, the queries of MCCO at budget n (the n samples
+and at most MP_ITERATIONS decoded candidates), so both methods get the same budget. Its runs keep
+the stage name `da`, so that `--stage da` replaces the digital-annealing runs when copying from an
+older directory, and get a new seed stream (`sa_run`, id 14). T0 and T_end keep their values
+(0.36 and 0.11, in units of f): they were set from the single-flip |Delta f|, which is the move of
+simulated annealing.
 Older notes and logs use the former names: `results` = results1, `results_v2` = results2,
 `results_e2` = results3, `results_s1` = results4, `results_theory_nu2` = results5.

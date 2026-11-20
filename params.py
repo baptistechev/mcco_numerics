@@ -34,14 +34,15 @@ SKETCHES = {
     "random": {"type": "gaussian", "rows": "quintuplet", "e1_instances": 10, "single_instance": False},
 }
 
-# --- Digital annealing baseline (sections 2 and 6) -------------------------------------------
-# One fixed setting for every family and |R|, as for MCCO (no per-ensemble tuning). Absolute
-# values in units of f (rewards in (0, 1]): the typical single-flip |Delta f| is about 0.5 in
-# every ensemble (0.43-0.62), so T0 accepts an uphill move of 0.25 with probability 1/2, T_end
-# one of 0.5 with probability 1/100, and the offset grows by 0.1 per rejected step.
-DA_T0 = 0.36                    # initial temperature (geometric schedule from T0 to T_end)
-DA_TEND = 0.11                  # final temperature
-DA_OFFSET_INCREMENT = 0.1       # dynamic offset increment after a step with no accepted flip
+# --- Simulated annealing baseline (sections 2 and 6) -----------------------------------------
+# Single-bit-flip simulated annealing: one proposed flip per query to f, Metropolis acceptance,
+# budget n + MP_ITERATIONS (the queries of MCCO at budget n, candidates included). One fixed
+# setting for every family and |R|, as for MCCO (no per-ensemble tuning). Absolute values in units
+# of f (rewards in (0, 1]): the typical single-flip |Delta f| is about 0.5 in every ensemble
+# (0.43-0.62), so T0 accepts a downhill move of 0.25 with probability 1/2 and T_end one of 0.5 with
+# probability 1/100.
+SA_T0 = 0.36                    # initial temperature (geometric schedule over the queries, T0 to T_end)
+SA_TEND = 0.11                  # final temperature
 
 # --- E2: threshold sweep -------------------------------------------------------------------------
 E2_R = 5                        # E2 instances come from the |R| = E2_R ensembles
