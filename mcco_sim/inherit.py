@@ -35,21 +35,20 @@ RECORD_FILES = ["instances.jsonl", "theory.jsonl", "runs.jsonl"]
 JSON_FILES = {"e2select": ["e2_budget_choice.json"]}
 SELECTION_KEYS = {"instances": "e3", "sweep": "e5", "e2select": "e2"}
 SOURCES = "sources.json"
-ANNEALING_METHODS = ("da", "sa")   # digital annealing (results1-6), simulated annealing (stage da)
 
 
 def stage_of(unit: str, method: str | None = None) -> str | None:
     """Stage of a record from its unit key and method; None for a stage that no longer exists
-    (``tuning/...`` and the tuning instances ``instances/tuning/...``). Annealing runs (method "da" or
-    "sa") in ``e1/...`` units come from the older code."""
+    (``tuning/...`` and the tuning instances ``instances/tuning/...``). Annealing runs (method "da")
+    in ``e1/...`` units come from the older code."""
     if unit.startswith("instances/tuning/"):
         return None
     stage = STAGE_OF_UNIT.get(unit.split("/", 1)[0])
-    return "da" if stage == "e1" and method in ANNEALING_METHODS else stage
+    return "da" if stage == "e1" and method == "da" else stage
 
 
 def _method(line: bytes) -> str | None:
-    return "da" if b'"method": "da"' in line or b'"method": "sa"' in line else None
+    return "da" if b'"method": "da"' in line else None
 
 
 def _unit(line: bytes) -> str | None:

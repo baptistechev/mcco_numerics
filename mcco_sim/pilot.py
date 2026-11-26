@@ -9,7 +9,7 @@ import time
 
 import numpy as np
 
-from .annealing import annealing_runs
+from .annealing import da_runs
 from .checks import run_all
 from .instances import Instance, build_instance_descriptors
 from .mcco import mcco_sample
@@ -50,7 +50,7 @@ def pilot(out: Output) -> None:
                 r["unit"] = "pilot"
             out.append("runs.jsonl", recs)
             timings["mcco"] += recs
-        da = annealing_runs(params, inst, range(params.PILOT_SAMPLES), params.budgets, "pilot")
+        da = da_runs(params, inst, range(params.PILOT_SAMPLES), params.budgets, "pilot")
         for r in da:
             r["unit"] = "pilot"
         out.append("runs.jsonl", da)

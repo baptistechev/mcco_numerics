@@ -47,7 +47,7 @@ def stage_e1(out: Output, workers: int) -> None:
 
 
 def stage_da(out: Output, workers: int) -> None:
-    """Simulated annealing on the E1 instances (records with experiment "e1", method "sa")."""
+    """Digital annealing on the E1 instances (records with experiment "e1", method "da")."""
     units = [{"key": f"da/{d['key']}", "payload": {"descriptor": d}}
              for d in build_instance_descriptors(out.params)["e1"]]
     execute(out, "da", units, workers)
