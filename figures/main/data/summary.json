@@ -1,10 +1,10 @@
 {
-  "results_dir": "/home/baptiste/Gdrive/Projects/mcco_paper/results/results6",
+  "results_dir": "/home/baptiste/Gdrive/Projects/mcco_paper/results/results7",
   "stage_sources": {
     "instances": "results5",
     "theory": "results5",
     "e1": "results1",
-    "da": "results6",
+    "da": "results7",
     "sweep": "results2",
     "e2select": "results3",
     "e2": "results3",
@@ -35,13 +35,18 @@
   },
   "last_invocation": {
     "only": [
-      "e1"
+      "e1",
+      "e2",
+      "e3",
+      "e4",
+      "e5",
+      "s1"
     ],
     "from_csv": false
   },
   "made_from": {
-    "e1": "results6",
-    "e2": "results6",
-    "e4": "results6"
+    "e1": "results7",
+    "e2": "results7",
+    "e4": "results7"
   }
 }
