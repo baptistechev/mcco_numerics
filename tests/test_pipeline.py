@@ -63,6 +63,7 @@ def test_da_fixed_setting(tiny, completed):
     assert len(da) == 2 * 5 * tiny.I * tiny.J * len(tiny.budgets)
     setting = {"T0": tiny.DA_T0, "Tend": tiny.DA_TEND, "offset_increment": tiny.DA_OFFSET_INCREMENT}
     assert all(r["setting"] == setting and (r["T0"], r["Tend"]) == (tiny.DA_T0, tiny.DA_TEND) for r in da)
+    assert all(r["queries"] == r["budget"] == r["n"] + tiny.MP_ITERATIONS for r in da)
     assert not any(completed.path(name).exists() for name in ("tuning_runs.jsonl", "da_delta.json", "tuning_choice.json"))
 
 
@@ -349,3 +350,18 @@ def test_s1_basis_pursuit(tiny, completed):
         assert len(r["candidates"]) <= tiny.MP_ITERATIONS
         if "bp_residual" in r:
             assert r["bp_residual_over_eta"] < 1.05
+
+
+def test_da_uses_whole_budget():
+    """Digital annealing spends exactly its budget, with a partial last step when needed."""
+    import numpy as np
+    from mcco_sim.annealing import digital_annealing
+    N = 8
+    f = np.random.default_rng(0).normal(size=2 ** N)
+    setting = {"T0": 0.36, "Tend": 0.11, "offset_increment": 0.1}
+    for budget in [1, 2, 9, 10, 17, 55, 105]:
+        out = digital_annealing(f, N, budget, setting, seed=1)
+        assert out["queries"] == budget
+        assert out["partial_step"] == (budget - 1) % N
+        assert out["steps"] == -(-(budget - 1) // N)
+        assert out == digital_annealing(f, N, budget, setting, seed=1)

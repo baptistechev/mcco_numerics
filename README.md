@@ -95,7 +95,7 @@ new directory is complete and the figures can be made from it alone. `run.py` pr
 | `instances` | every instance (rules, exact spectrum, optimum), the E3 instance | all |
 | `theory` | Theorem 1 / Corollary 1 quantities per instance and sketch | E5, E3 |
 | `e1` | MCCO (every sketch) on the E1 instances | E1, E4, E5b |
-| `da` | digital annealing (one fixed setting, `DA_*` in `params.py`) on the E1 instances | E1 |
+| `da` | digital annealing (one fixed setting, `DA_*` in `params.py`) on the E1 instances, budget n + `MP_ITERATIONS` | E1 |
 | `sweep` | 300 runs on the E3 instance and on the E5a instances (chosen from `theory`) | E3, E5a |
 | `e2select` | the two E2 instances and budget, from the E1 success curves | E2 |
 | `e2` | threshold sweep on the E2 instances | E2 |
@@ -239,5 +239,14 @@ current code uses one fixed setting for every ensemble, like MCCO, in its own `d
 from those directories drops their `tuning` stage, and their annealing runs (inside the `e1` units)
 count as stage `da`: `--stage da` replaces them and keeps their MCCO runs. Reproducing them (`--reproduce`) needs the commit before this change,
 because their `params.py` has the tuning names.
+
+Annealing budget. Up to results6, digital annealing spent its budget in whole steps of N
+queries, so it used 1 + N⌊(n − 1)/N⌋ ≤ n queries (41 of 50 at n = 50). It now receives
+n + `MP_ITERATIONS` queries, the most MCCO uses at budget n (n samples and at most
+`MP_ITERATIONS` new candidates), and when fewer than N queries remain, its last step evaluates a
+random subset of that many single-bit flips, so it uses the whole budget (`budget`,
+`partial_step` in its records). Reproducing the `da` records of results6 (`--reproduce`) needs
+commit f0e32bb. The single-bit-flip simulated-annealing baseline (results7) is kept on the
+branch `simulated-annealing`.
 Older notes and logs use the former names: `results` = results1, `results_v2` = results2,
 `results_e2` = results3, `results_s1` = results4, `results_theory_nu2` = results5.

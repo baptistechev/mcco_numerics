@@ -120,7 +120,7 @@ def check_annealing(params: Params) -> list[dict]:
     da = da_runs(small, inst, range(2), budgets, "selftest")
     again = da_runs(small, inst, range(2), budgets, "selftest")
     return [
-        _result("DA queries <= n", all(r["queries"] <= r["n"] for r in da)),
+        _result("DA queries = n + MP_ITERATIONS", all(r["queries"] == r["n"] + small.MP_ITERATIONS for r in da)),
         _result("DA reproducible from recorded seeds", _strip_timing(da) == _strip_timing(again)),
     ]
 
